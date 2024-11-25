@@ -1,24 +1,28 @@
 class PromptManager:
     def __init__(self):
         self.templates = {
-            "blog": """Escribe un artículo de blog sobre {tema}.
-                      Audiencia objetivo: {audiencia}
-                      Tono: {tono}
-                      Longitud aproximada: 500 palabras""",
+            "blog": """Write a comprehensive blog post about {topic}.
+                      Target audience: {audience}
+                      Tone: {tone}
+                      Approximate length: 500 words
+                      Focus on providing actionable insights and engaging content.""",
             
-            "twitter": """Crea un tweet conciso y atractivo sobre {tema}.
-                         Audiencia: {audiencia}
-                         Debe ser menor a 280 caracteres.""",
+            "twitter": """Craft a concise, impactful tweet about {topic}.
+                         Target audience: {audience}
+                         Must be under 280 characters
+                         Include a compelling hook or key takeaway.""",
             
-            "instagram": """Genera una descripción atractiva para Instagram sobre {tema}.
-                          Incluye hashtags relevantes.
-                          Audiencia: {audiencia}""",
+            "instagram": """Create an engaging Instagram caption for {topic}.
+                          Include relevant and trending hashtags
+                          Target audience: {audience}
+                          Make it visually appealing and shareable""",
             
-            "linkedin": """Crea una publicación profesional para LinkedIn sobre {tema}.
-                          Enfocado a: {audiencia}
-                          Tono: profesional y constructivo"""
+            "linkedin": """Develop a professional LinkedIn post about {topic}.
+                          Targeted to: {audience}
+                          Tone: professional, authoritative, and value-driven
+                          Highlight key professional insights or industry trends"""
         }
     
     def get_prompt(self, platform, tema, audiencia, tono="neutral"):
         template = self.templates.get(platform)
-        return template.format(tema=tema, audiencia=audiencia, tono=tono)
+        return template.format(topic=tema, audience=audiencia, tone=tono)

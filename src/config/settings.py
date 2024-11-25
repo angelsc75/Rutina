@@ -24,7 +24,7 @@ API_SETTINGS = {
 MODEL_SETTINGS = {
     "model_id": "gpt2",  # Puedes cambiar a otro modelo gratuito de Hugging Face
     "max_length": 1000,
-    "temperature": 0.7
+    "temperature": 0.3
 }
 
 # Configuración de la aplicación web
