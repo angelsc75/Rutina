@@ -1,29 +1,45 @@
 from openai import OpenAI
-from config.settings import API_SETTINGS, MODEL_SETTINGS
+from config.settings import MODEL_SETTINGS, LLM_PROVIDERS
 from models.content import Content
 import uuid
 
+from groq import Groq
+
 class LLMManager:
-    def __init__(self):
-        self.client = OpenAI(api_key=API_SETTINGS["openai_api_key"])
+    def __init__(self, provider='openai'):
+        self.provider = provider
+        
+        if provider == 'openai':
+            self.client = OpenAI(api_key=LLM_PROVIDERS['openai']['api_key'])
+            self.model = LLM_PROVIDERS['openai']['model']
+        elif provider == 'groq':
+            self.client = Groq(api_key=LLM_PROVIDERS['groq']['api_key'])
+            self.model = LLM_PROVIDERS['groq']['model']
     
-    def generate_content(self, prompt, platform, topic, audience) -> Content:
+    def generate_content(self, prompt, platform, topic, audience):
         try:
-            response = self.client.chat.completions.create(
-                model=MODEL_SETTINGS["model"],
-                messages=[
-                    {"role": "system", "content": "Eres un asistente experto en generación de contenido para redes sociales."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=MODEL_SETTINGS["temperature"],
-                max_tokens=MODEL_SETTINGS["max_tokens"]
-            )
+            if self.provider == 'openai':
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "Eres un asistente experto en generación de contenido."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                generated_text = response.choices[0].message.content.strip()
             
-            generated_text = response.choices[0].message.content.strip()
+            elif self.provider == 'groq':
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "Eres un asistente experto en generación de contenido."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                generated_text = response.choices[0].message.content.strip()
             
-            # Crear objeto Content
             content = Content(
-                id=str(uuid.uuid4()),  # Genera un ID único
+                id=str(uuid.uuid4()),
                 platform=platform,
                 topic=topic,
                 audience=audience,

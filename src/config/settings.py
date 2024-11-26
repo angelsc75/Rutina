@@ -3,6 +3,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+LLM_PROVIDERS = {
+    "openai": {
+        "model": "gpt-4o-mini",
+        "api_key": os.getenv("OPENAI_API_KEY")
+    },
+    "groq": {
+        "model": "llama3-8b-8192",  # Modelo de Groq
+        "api_key": os.getenv("GROQ_API_KEY")
+    }
+}
+
 AVAILABLE_PLATFORMS = [
     "blog",
     "twitter", 
@@ -10,9 +21,7 @@ AVAILABLE_PLATFORMS = [
     "linkedin"
 ]
 
-API_SETTINGS = {
-    "openai_api_key": os.getenv("OPENAI_API_KEY")
-}
+
 
 MODEL_SETTINGS = {
     "model": "gpt-4o-mini",  # Nuevo modelo
