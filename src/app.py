@@ -1,7 +1,11 @@
 import streamlit as st
 from core.prompt_manager import PromptManager
 from core.llm_manager import LLMManager
+from models.content import ContentManager
 from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS
+
+# Inicializar gestor de contenidos (podría ser global o en sesión)
+content_manager = ContentManager()
 
 def main():
     st.title(APP_SETTINGS["title"])
@@ -16,11 +20,28 @@ def main():
         prompt_manager = PromptManager()
         llm_manager = LLMManager()
         
+        # Obtener prompt específico
         prompt = prompt_manager.get_prompt(platform, tema, audiencia)
-        contenido = llm_manager.generate_content(prompt)
         
-        st.write("### Contenido Generado")
-        st.write(contenido)
+        # Generar contenido
+        content = llm_manager.generate_content(prompt, platform, tema, audiencia)
+        
+        if content:
+            # Añadir a gestor de contenidos
+            content_manager.add_content(content)
+            
+            # Mostrar contenido
+            st.write("### Contenido Generado")
+            st.write(content.text)
+            
+            # Mostrar detalles adicionales
+            st.write("#### Detalles")
+            st.write(f"**Plataforma:** {content.platform}")
+            st.write(f"**Tema:** {content.topic}")
+            st.write(f"**Audiencia:** {content.audience}")
+            st.write(f"**Generado el:** {content.generated_at}")
+        else:
+            st.error("Hubo un problema generando el contenido")
 
 if __name__ == "__main__":
     main()

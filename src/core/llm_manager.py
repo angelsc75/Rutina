@@ -1,37 +1,37 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from openai import OpenAI
 from config.settings import API_SETTINGS, MODEL_SETTINGS
-
+from models.content import Content
+import uuid
 
 class LLMManager:
     def __init__(self):
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            API_SETTINGS["model_id"],
-            use_fast=True,
-            use_auth_token=API_SETTINGS["huggingface_token"]
-        )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            API_SETTINGS["model_id"],
-            use_cache=True,
-            use_auth_token=API_SETTINGS["huggingface_token"]
-        )
+        self.client = OpenAI(api_key=API_SETTINGS["openai_api_key"])
+    
+    def generate_content(self, prompt, platform, topic, audience) -> Content:
+        try:
+            response = self.client.chat.completions.create(
+                model=MODEL_SETTINGS["model"],
+                messages=[
+                    {"role": "system", "content": "Eres un asistente experto en generación de contenido para redes sociales."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=MODEL_SETTINGS["temperature"],
+                max_tokens=MODEL_SETTINGS["max_tokens"]
+            )
+            
+            generated_text = response.choices[0].message.content.strip()
+            
+            # Crear objeto Content
+            content = Content(
+                id=str(uuid.uuid4()),  # Genera un ID único
+                platform=platform,
+                topic=topic,
+                audience=audience,
+                text=generated_text
+            )
+            
+            return content
         
-        # Set padding token if not already set
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model.config.pad_token_id = self.tokenizer.pad_token_id
-
-    def generate_content(self, prompt):
-        inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
-        
-        outputs = self.model.generate(
-            inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            max_length=MODEL_SETTINGS["max_length"],
-            num_return_sequences=1,
-            temperature=MODEL_SETTINGS["temperature"],
-            do_sample=True,  # Key change here
-            no_repeat_ngram_size=2,
-            use_cache=True
-        )
-        
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        except Exception as e:
+            print(f"Error generando contenido: {e}")
+            return None
