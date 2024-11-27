@@ -20,8 +20,12 @@ def main():
     tema = st.text_input("¿Sobre qué tema quieres generar contenido?")
     audiencia = st.text_input("¿Cuál es tu audiencia objetivo?")
     
-    # Checkbox para generar imagen
+    # Checkbox para generar imagen y selector de generador
     generar_imagen = st.checkbox("Generar imagen para la publicación")
+    
+    # Si se va a generar imagen, mostrar selector de generador
+    if generar_imagen:
+        image_generator = st.selectbox("Elige generador de imágenes", ['dall-e', 'stable-diffusion'])
     
     if st.button("Generar Contenido"):
         # Generación de texto
@@ -36,23 +40,24 @@ def main():
         
         # Generación de imagen condicional
         imagen = None
+        if generar_imagen:
+    # Mostrar un mensaje de carga
+            with st.spinner('Generando imagen...'):
+                image_generator_obj = ImageGenerator()
         
-    # En la sección de generación de imagen
-    if generar_imagen:
-        # Mostrar un mensaje de carga
-        with st.spinner('Generando imagen...'):
-            image_generator = ImageGenerator()
-        
-            image_prompts = {
-                "blog": f"Ilustración profesional que represente {tema}, estilo de imagen de blog de alta calidad",
-                "twitter": f"Imagen cuadrada llamativa y concisa sobre {tema}, estilo de infografía para twitter",
-                "instagram": f"Imagen visualmente atractiva de {tema}, estilo de post de Instagram con colores vibrantes",
-                "linkedin": f"Imagen profesional corporativa relacionada con {tema}, estilo de contenido de LinkedIn"
-            }
-        
-            image_prompt = image_prompts.get(platform, f"Imagen representativa de {tema}")
-        
-            imagen = image_generator.generate_image(image_prompt, platform)
+                # Mantener los prompts existentes
+                image_prompts = {
+                    "blog": f"Ilustración profesional que represente {tema}, estilo de imagen de blog de alta calidad",
+                    "twitter": f"Imagen cuadrada llamativa y concisa sobre {tema}, estilo de infografía para twitter",
+                    "instagram": f"Imagen visualmente atractiva de {tema}, estilo de post de Instagram con colores vibrantes",
+                    "linkedin": f"Imagen profesional corporativa relacionada con {tema}, estilo de contenido de LinkedIn"
+                }
+                
+                # Seleccionar prompt de imagen según la plataforma
+                image_prompt = image_prompts.get(platform, f"Imagen representativa de {tema}")
+                
+                # Generar imagen con el generador seleccionado y tamaño de plataforma específico
+                imagen = image_generator_obj.generate_image(image_prompt, platform, image_generator)
         
         if content:
             # Añadir a gestor de contenidos
@@ -72,7 +77,7 @@ def main():
             # Mostrar imagen si se generó
             if imagen and generar_imagen:
                 st.write("### Imagen Generada")
-                st.image(imagen, caption=f"Imagen para {platform}")
+                st.image(imagen, caption=f"Imagen para {platform} generada con {image_generator}")
         else:
             st.error("Hubo un problema generando el contenido")
 
