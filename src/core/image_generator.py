@@ -2,6 +2,7 @@ import os
 import logging
 import torch
 import io
+import requests
 from PIL import Image
 from diffusers import StableDiffusionPipeline
 from openai import OpenAI
@@ -28,12 +29,15 @@ class ImageGenerator:
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
 
-        # Inicializar clientes para ambos servicios
+        # Inicializar clientes para servicios
         try:
             self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         except Exception as e:
             self.logger.error(f"Error inicializando cliente OpenAI: {e}")
             self.openai_client = None
+        
+        # Obtener API key de Unsplash desde variables de entorno
+        self.unsplash_access_key = os.getenv("UNSPLASH_ACCESS_KEY")
         
         # Inicializar Stable Diffusion
         try:
@@ -55,12 +59,75 @@ class ImageGenerator:
             traceback.print_exc()
             self.sd_model = None
 
-    def generate_image(self, prompt, platform, generator='dall-e'):
+    def _validate_and_adjust_size(self, width, height):
+        """
+        Ajusta las dimensiones para que sean divisibles por 8
+        """
+        def round_to_8(n):
+            return int(round(n / 8) * 8)
+        
+        adjusted_width = round_to_8(width)
+        adjusted_height = round_to_8(height)
+        
+        if width != adjusted_width or height != adjusted_height:
+            self.logger.warning(f"Ajustando tamaño de {width}x{height} a {adjusted_width}x{adjusted_height}")
+        
+        return adjusted_width, adjusted_height
+
+    def _get_unsplash_image(self, prompt, width, height):
+        """
+        Obtener imagen desde Unsplash
+        """
+        if not self.unsplash_access_key:
+            self.logger.error("Unsplash access key no configurada")
+            return None
+        
+        try:
+            # Parámetros para buscar imagen
+            params = {
+                'query': prompt,
+                'client_id': self.unsplash_access_key,
+                'w': width,
+                'h': height,
+                'fit': 'crop'  # Recortar para ajustar dimensiones exactas
+            }
+            
+            # Realizar solicitud a API de Unsplash
+            response = requests.get(
+                "https://api.unsplash.com/photos/random", 
+                params=params
+            )
+            
+            # Verificar respuesta
+            if response.status_code == 200:
+                data = response.json()
+                image_url = data['urls']['custom']  # URL de imagen con dimensiones personalizadas
+                
+                # Descargar imagen
+                image_response = requests.get(image_url)
+                if image_response.status_code == 200:
+                    return image_response.content
+            
+            self.logger.error(f"Error obteniendo imagen de Unsplash: {response.status_code}")
+            return None
+        
+        except Exception as e:
+            self.logger.error(f"Error en búsqueda de Unsplash: {e}")
+            return None
+
+    def generate_image(self, prompt, platform, generator='unsplash'):
         try:
             # Obtener tamaño específico de plataforma, con fallback a un tamaño genérico
             size = self.PLATFORM_SIZES.get(platform, (1024, 1024))
+            
+            # Validar y ajustar tamaño
+            width, height = self._validate_and_adjust_size(*size)
 
-            if generator == 'stable-diffusion':
+            # Seleccionar generador de imagen
+            if generator == 'unsplash':
+                return self._get_unsplash_image(prompt, width, height)
+            
+            elif generator == 'stable-diffusion':
                 # Verificar si el modelo está inicializado
                 if self.sd_model is None:
                     self.logger.error("Stable Diffusion model is not initialized")
@@ -72,16 +139,16 @@ class ImageGenerator:
                         prompt=prompt, 
                         num_inference_steps=20,
                         guidance_scale=7.5,
-                        width=size[0],   # Usar ancho específico
-                        height=size[1]   # Usar alto específico
+                        width=width,   # Usar ancho ajustado
+                        height=height  # Usar alto ajustado
                     ).images
                     
                     if not images:
                         self.logger.error("No images were generated")
                         return None
                     
-                    # Redimensionar imagen al tamaño exacto de la plataforma
-                    resized_image = images[0].resize(size, Image.LANCZOS)
+                    # Redimensionar imagen al tamaño exacto 
+                    resized_image = images[0].resize((width, height), Image.LANCZOS)
                     
                     # Convertir a bytes
                     img_byte_arr = io.BytesIO()
@@ -105,7 +172,7 @@ class ImageGenerator:
                     response = self.openai_client.images.generate(
                         model="dall-e-3",
                         prompt=prompt,
-                        size=f"{size[0]}x{size[1]}"
+                        size=f"{width}x{height}"
                     )
                     return response.data[0].url
                 except Exception as e:
