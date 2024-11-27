@@ -2,11 +2,13 @@ from openai import OpenAI
 from config.settings import MODEL_SETTINGS, LLM_PROVIDERS
 from models.content import Content
 import uuid
-
+from langsmith import Client
 from groq import Groq
 
 class LLMManager:
     def __init__(self, provider='openai'):
+        self.langsmith_client = Client()
+    
         self.provider = provider
         
         if provider == 'openai':
@@ -17,6 +19,14 @@ class LLMManager:
             self.model = LLM_PROVIDERS['groq']['model']
     
     def generate_content(self, prompt, platform, topic, audience):
+         # Crear un seguimiento de la solicitud en LangSmith
+        with self.langsmith_client.start_trace(name="content_generation") as trace:
+            trace.add_inputs({
+                "prompt": prompt,
+                "platform": platform,
+                "topic": topic,
+                "audience": audience
+            })
         try:
             if self.provider == 'openai':
                 response = self.client.chat.completions.create(
@@ -45,9 +55,12 @@ class LLMManager:
                 audience=audience,
                 text=generated_text
             )
-            
+            trace.add_outputs({
+                    "generated_content": content.text,
+                    "content_id": content.id
+                })
             return content
         
         except Exception as e:
-            print(f"Error generando contenido: {e}")
-            return None
+            trace.record_exception(e)
+            raise
