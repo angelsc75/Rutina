@@ -36,22 +36,22 @@ def main():
         
         # Generación de imagen condicional
         imagen = None
-        # En la sección de generación de imagen
-        if generar_imagen:
+        
+    # En la sección de generación de imagen
+    if generar_imagen:
+        # Mostrar un mensaje de carga
+        with st.spinner('Generando imagen...'):
             image_generator = ImageGenerator()
-            
-            # Generar prompt de imagen específico para cada plataforma
+        
             image_prompts = {
                 "blog": f"Ilustración profesional que represente {tema}, estilo de imagen de blog de alta calidad",
                 "twitter": f"Imagen cuadrada llamativa y concisa sobre {tema}, estilo de infografía para twitter",
                 "instagram": f"Imagen visualmente atractiva de {tema}, estilo de post de Instagram con colores vibrantes",
                 "linkedin": f"Imagen profesional corporativa relacionada con {tema}, estilo de contenido de LinkedIn"
             }
-            
-            # Seleccionar prompt de imagen según la plataforma
+        
             image_prompt = image_prompts.get(platform, f"Imagen representativa de {tema}")
-            
-            # Pasar la plataforma para adaptar dimensiones
+        
             imagen = image_generator.generate_image(image_prompt, platform)
         
         if content:
