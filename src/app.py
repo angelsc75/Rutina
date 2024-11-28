@@ -60,34 +60,39 @@ def standard_content_generation(llm_provider):
 
 
 def financial_news_generation(llm_provider):
-    st.header("Noticias de Mercados Financieros")
-    
+    st.header("Noticias Financieras por Mercado")
+
+    # Selector de mercado
+    selected_market = st.selectbox(
+        "Selecciona un Mercado",
+        ["NYSE", "NASDAQ", "Tokyo", "Shanghai", "Hong Kong", "London", "Euronext", "Shenzhen"]
+    )
+
     # Selector de idioma
-    idioma = st.selectbox("Selecciona Idioma", [
-        "castellano", "english", "français", "italiano"
-    ])
-    
-    categoria = st.selectbox("Categoría", [
-        "technology", "finance", "economy", "markets"
-    ])
-    
-    platform = st.selectbox("Formato de Publicación", AVAILABLE_PLATFORMS)
-    
-    if st.button("Generar Informe Financiero"):
-        financial_generator = FinancialNewsGenerator(
-            api_key=os.getenv("ALPHA_VANTAGE_KEY")
-        )
-        
-        news_data = financial_generator.get_market_news(categoria)
-        
-        # Generar contenido con el idioma seleccionado
-        content = financial_generator.generate_financial_content(
-            news_data, 
-            language=idioma
-        )
-        
-        st.write(f"### Informe Financiero en {idioma.capitalize()}")
-        st.write(content.text)
+    idioma = st.selectbox("Selecciona Idioma", ["castellano", "english", "français", "italiano"])
+
+    # Botón para mostrar las acciones
+    if st.button("Mostrar Acciones del Mercado"):
+        try:
+            # Inicializar generador de noticias financieras
+            financial_generator = FinancialNewsGenerator()
+
+            # Obtener los cinco primeros valores del mercado seleccionado
+            stock_data = financial_generator.get_stock_data(market=selected_market, top_n=5)
+
+            if selected_market in stock_data and stock_data[selected_market]:
+                st.write(f"### Top 5 Acciones en {selected_market}")
+                for stock in stock_data[selected_market]:
+                    st.write(
+                        f"**{stock['name']} ({stock['symbol']})**: "
+                        f"Precio: {stock['price']:.2f}, "
+                        f"Cambio: {stock['change']:.2f} ({stock['change_percent']:.2f}%)"
+                    )
+            else:
+                st.write(f"No hay datos disponibles para el mercado {selected_market}.")
+
+        except Exception as e:
+            st.error(f"Error al cargar los datos: {e}")
 
 def scientific_content_generation(llm_provider):
     st.header("Contenido Científico Divulgativo")
