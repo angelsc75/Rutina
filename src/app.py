@@ -5,7 +5,7 @@ from core.financial_news_generator import FinancialNewsGenerator  # Nuevo
 from core.scientific_rag import ScientificContentRAG  # Nuevo
 from models.content import ContentManager
 from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS, LLM_PROVIDERS
-
+import os
 def main():
     st.title(APP_SETTINGS["title"])
     st.sidebar.title("Opciones Avanzadas")
@@ -13,7 +13,6 @@ def main():
     # Menú de funcionalidades avanzadas
     feature_mode = st.sidebar.radio("Selecciona Modo", [
         "Generación Estándar", 
-        "Contenido Multilingüe", 
         "Noticias Financieras", 
         "Contenido Científico"
     ])
@@ -24,9 +23,6 @@ def main():
     if feature_mode == "Generación Estándar":
         standard_content_generation(llm_provider)
     
-    elif feature_mode == "Contenido Multilingüe":
-        multilingual_content_generation(llm_provider)
-    
     elif feature_mode == "Noticias Financieras":
         financial_news_generation(llm_provider)
     
@@ -34,31 +30,19 @@ def main():
         scientific_content_generation(llm_provider)
 
 def standard_content_generation(llm_provider):
-    # Lógica actual de generación de contenido
-    platform = st.selectbox("Selecciona la plataforma", AVAILABLE_PLATFORMS)
-    tema = st.text_input("¿Sobre qué tema quieres generar contenido?")
-    audiencia = st.text_input("¿Cuál es tu audiencia objetivo?")
-    
-    # Resto del código de generación estándar...
-
-def multilingual_content_generation(llm_provider):
-    st.header("Generación de Contenido Multilingüe")
-    
     # Selector de idioma
     idioma = st.selectbox("Selecciona Idioma", [
         "castellano", "english", "français", "italiano"
     ])
     
-    # Campos similares a generación estándar
-    platform = st.selectbox("Plataforma", AVAILABLE_PLATFORMS)
-    tema = st.text_input("Tema del contenido")
-    audiencia = st.text_input("Audiencia objetivo")
+    platform = st.selectbox("Selecciona la plataforma", AVAILABLE_PLATFORMS)
+    tema = st.text_input("¿Sobre qué tema quieres generar contenido?")
+    audiencia = st.text_input("¿Cuál es tu audiencia objetivo?")
     
-    if st.button("Generar Contenido Multilingüe"):
+    if st.button("Generar Contenido"):
         prompt_manager = PromptManager()
         llm_manager = LLMManager(provider=llm_provider)
         
-        # Generar con parámetro de idioma
         prompt = prompt_manager.get_prompt(
             platform, tema, audiencia, 
             idioma=idioma
@@ -70,16 +54,23 @@ def multilingual_content_generation(llm_provider):
         
         st.write(f"### Contenido en {idioma.capitalize()}")
         st.write(content.text)
+    
+    # Resto del código de generación estándar...
+
+
 
 def financial_news_generation(llm_provider):
     st.header("Noticias de Mercados Financieros")
     
-    # Selector de categoría de noticias
+    # Selector de idioma
+    idioma = st.selectbox("Selecciona Idioma", [
+        "castellano", "english", "français", "italiano"
+    ])
+    
     categoria = st.selectbox("Categoría", [
         "technology", "finance", "economy", "markets"
     ])
     
-    # Selector de plataforma para formato
     platform = st.selectbox("Formato de Publicación", AVAILABLE_PLATFORMS)
     
     if st.button("Generar Informe Financiero"):
@@ -87,19 +78,25 @@ def financial_news_generation(llm_provider):
             api_key=os.getenv("ALPHA_VANTAGE_KEY")
         )
         
-        # Obtener noticias
         news_data = financial_generator.get_market_news(categoria)
         
-        # Generar contenido
-        content = financial_generator.generate_financial_content(news_data)
+        # Generar contenido con el idioma seleccionado
+        content = financial_generator.generate_financial_content(
+            news_data, 
+            language=idioma
+        )
         
-        st.write("### Informe Financiero")
+        st.write(f"### Informe Financiero en {idioma.capitalize()}")
         st.write(content.text)
 
 def scientific_content_generation(llm_provider):
     st.header("Contenido Científico Divulgativo")
     
-    # Selector de dominio científico
+    # Selector de idioma
+    idioma = st.selectbox("Selecciona Idioma", [
+        "castellano", "english", "français", "italiano"
+    ])
+    
     dominio = st.selectbox("Área Científica", [
         "física cuántica", 
         "inteligencia artificial", 
@@ -107,22 +104,21 @@ def scientific_content_generation(llm_provider):
         "astrofísica"
     ])
     
-    # Input de consulta específica
     consulta = st.text_input("Consulta científica específica")
     
-    # Selector de plataforma
     platform = st.selectbox("Formato de Publicación", AVAILABLE_PLATFORMS)
     
     if st.button("Generar Contenido Científico"):
-        scientific_rag = ScientificContentRAG(domain=dominio)
+        scientific_rag = ScientificContentRAG(
+            domain=dominio, 
+            language=idioma
+        )
         
-        # Generar contenido con RAG
         content = scientific_rag.generate_scientific_content(consulta)
         
-        st.write("### Contenido Científico Divulgativo")
+        st.write(f"### Contenido Científico en {idioma.capitalize()}")
         st.write(content.text)
         
-        # Mostrar papers de referencia
         with st.expander("Referencias Científicas"):
             papers = scientific_rag.fetch_arxiv_papers()
             for paper in papers:
