@@ -2,7 +2,7 @@ import requests
 import xml.etree.ElementTree as ET
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-
+from core.llm_manager import LLMManager
 class ScientificContentRAG:
     def __init__(self, domain="quantum physics"):
         self.domain = domain

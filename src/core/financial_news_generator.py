@@ -1,137 +1,84 @@
 import yfinance as yf
-import pandas as pd
+import time
 import plotly.graph_objs as go
 from models.content import Content
-import time
 
 class FinancialNewsGenerator:
     def __init__(self):
-        # Market indices and top stocks mappings
-        self.market_stocks = {
-            "NYSE": ["AAPL", "MSFT", "V", "JPM", "JNJ"],
-            "NASDAQ": ["GOOGL", "AMZN", "NVDA", "META", "TSLA"],
-            "Tokyo": ["7203.T", "9984.T", "6758.T", "9433.T", "7267.T"],  # Toyota, Softbank, Sony, NTT, Honda
-            "Shanghai": ["600519.SS", "600887.SS", "601398.SS", "600036.SS", "600030.SS"],
-            "Hong Kong": ["0700.HK", "9988.HK", "3690.HK", "0941.HK", "0005.HK"],
-            "London": ["SHEL.L", "HSBA.L", "BP.L", "ULVR.L", "AZN.L"],
-            "Euronext": ["AIR.PA", "OR.PA", "MC.PA", "BNP.PA", "SAN.PA"],
-            "Shenzhen": ["000858.SZ", "002572.SZ", "000333.SZ", "000651.SZ", "002415.SZ"]
-        }
+        # Inicialización de la clase
+        pass
 
-    def get_stock_data(self, market=None, top_n=5):
+    def get_top_stocks_from_market(self, market_ticker, top_n=5):
         """
-        Fetch stock data for a specific market or all markets.
+        Fetch top stocks for a given market index dynamically.
 
         Args:
-            market (str, optional): Specific market to fetch. Defaults to None (all markets).
-            top_n (int, optional): Number of top stocks to return per market. Defaults to 5.
+            market_ticker (str): Ticker symbol of the market index (e.g., "^GSPC" for S&P500).
+            top_n (int): Number of top stocks to return. Defaults to 5.
 
         Returns:
-            dict: Stock performance data for the specified market or all markets.
+            list: List of top stocks with their performance metrics.
         """
-        markets_to_fetch = [market] if market else self.market_stocks.keys()
-        stock_data = {}
+        try:
+            # Obtener historial del índice de mercado
+            market_index = yf.Ticker(market_ticker)
+            components = market_index.history(period="1d")
 
-        for market in markets_to_fetch:
-            market_stocks = self.market_stocks.get(market, [])
-            market_performance = []
+            # Si no hay datos, devolver un mensaje vacío
+            if components.empty:
+                return []
 
-            for symbol in market_stocks:
+            top_stocks = []
+            for stock_symbol in components.index:
                 try:
-                    stock = yf.Ticker(symbol)
+                    # Obtener datos individuales de las acciones
+                    stock = yf.Ticker(stock_symbol)
                     hist = stock.history(period="1d")
 
                     if not hist.empty:
                         stock_info = {
-                            "symbol": symbol,
-                            "name": stock.info.get('longName', symbol),
+                            "symbol": stock_symbol,
+                            "name": stock.info.get('longName', stock_symbol),
                             "price": hist['Close'].iloc[-1],
                             "change": hist['Close'].iloc[-1] - hist['Open'].iloc[0],
                             "change_percent": ((hist['Close'].iloc[-1] / hist['Open'].iloc[0]) - 1) * 100
                         }
-                        market_performance.append(stock_info)
+                        top_stocks.append(stock_info)
+
+                    # Evitar limitaciones de la API
+                    time.sleep(0.5)
 
                 except Exception as e:
-                    print(f"Error fetching data for {symbol}: {e}")
+                    print(f"Error fetching data for {stock_symbol}: {e}")
 
-                time.sleep(0.5)
+            # Ordenar por cambio porcentual y devolver los mejores valores
+            top_stocks.sort(key=lambda x: x['change_percent'], reverse=True)
+            return top_stocks[:top_n]
 
-            # Sort and select top_n stocks based on change percentage
-            market_performance.sort(key=lambda x: x['change_percent'], reverse=True)
-            stock_data[market] = market_performance[:top_n]
+        except Exception as e:
+            print(f"Error fetching data for market {market_ticker}: {e}")
+            return []
 
-        return stock_data
-
-    def create_stock_comparison_chart(self, stock_data):
+    def generate_market_report(self, market_ticker, top_n=5):
         """
-        Create an interactive stock comparison chart
-        
+        Generate a report for the top stocks in a given market.
+
         Args:
-            stock_data (dict): Stock performance data
-        
+            market_ticker (str): Ticker symbol of the market index.
+            top_n (int): Number of top stocks to include in the report. Defaults to 5.
+
         Returns:
-            plotly graph object
+            str: Market performance summary.
         """
-        # Prepare data for plotting
-        fig = go.Figure()
+        top_stocks = self.get_top_stocks_from_market(market_ticker, top_n)
+        if not top_stocks:
+            return f"No data available for market: {market_ticker}"
 
-        for market, stocks in stock_data.items():
-            # Get stock prices
-            for stock in stocks:
-                symbol = stock['symbol']
-                try:
-                    historical_data = yf.Ticker(symbol).history(period="1mo")
-                    
-                    fig.add_trace(go.Scatter(
-                        x=historical_data.index,
-                        y=historical_data['Close'],
-                        mode='lines',
-                        name=f"{market} - {symbol}"
-                    ))
-                except Exception as e:
-                    print(f"Error creating chart for {symbol}: {e}")
-
-        fig.update_layout(
-            title='Stock Performance Comparison',
-            xaxis_title='Date',
-            yaxis_title='Stock Price',
-            height=600,
-            width=1000,
-            legend_title_text='Stocks'
-        )
-
-        return fig
-
-    def generate_market_report(self, language="english"):
-        """
-        Generate a comprehensive market report
-        
-        Args:
-            language (str, optional): Language for the report. Defaults to "english".
-        
-        Returns:
-            Content object with market report
-        """
-        # Fetch stock data
-        stock_data = self.get_stock_data()
-        
-        # Prepare market report text
-        market_summary = f"Global Stock Markets Top Performers ({language.capitalize()}):\n\n"
-        
-        for market, stocks in stock_data.items():
-            market_summary += f"{market} Market Top 5 Stocks:\n"
-            for stock in stocks:
-                market_summary += (
-                    f"  {stock['name']} ({stock['symbol']}):\n"
-                    f"    Price: {stock['price']:.2f}\n"
-                    f"    Change: {stock['change']:.2f} ({stock['change_percent']:.2f}%)\n"
-                )
-            market_summary += "\n"
-
-        # Create Content object
-        return Content(
-            text=market_summary,
-            language=language,
-            topic="global_stock_markets",
-            platform="financial_report"
-        )
+        report = f"Top {top_n} Stocks in {market_ticker}:\n"
+        for stock in top_stocks:
+            report += (
+                f"  {stock['name']} ({stock['symbol']}):\n"
+                f"    Price: ${stock['price']:.2f}\n"
+                f"    Change: ${stock['change']:.2f} ({stock['change_percent']:.2f}%)\n"
+            )
+        return report

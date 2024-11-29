@@ -63,36 +63,24 @@ def financial_news_generation(llm_provider):
     st.header("Noticias Financieras por Mercado")
 
     # Selector de mercado
-    selected_market = st.selectbox(
-        "Selecciona un Mercado",
-        ["NYSE", "NASDAQ", "Tokyo", "Shanghai", "Hong Kong", "London", "Euronext", "Shenzhen"]
-    )
+    market_tickers = {
+        "S&P 500": "^GSPC",
+        "NASDAQ Composite": "^IXIC",
+        "Dow Jones": "^DJI",
+        "FTSE 100": "^FTSE",
+        "Nikkei 225": "^N225"
+    }
+    selected_market = st.selectbox("Selecciona un Mercado", list(market_tickers.keys()))
 
-    # Selector de idioma
-    idioma = st.selectbox("Selecciona Idioma", ["castellano", "english", "français", "italiano"])
-
-    # Botón para mostrar las acciones
-    if st.button("Mostrar Acciones del Mercado"):
+    if st.button("Mostrar Informe del Mercado"):
         try:
-            # Inicializar generador de noticias financieras
             financial_generator = FinancialNewsGenerator()
-
-            # Obtener los cinco primeros valores del mercado seleccionado
-            stock_data = financial_generator.get_stock_data(market=selected_market, top_n=5)
-
-            if selected_market in stock_data and stock_data[selected_market]:
-                st.write(f"### Top 5 Acciones en {selected_market}")
-                for stock in stock_data[selected_market]:
-                    st.write(
-                        f"**{stock['name']} ({stock['symbol']})**: "
-                        f"Precio: {stock['price']:.2f}, "
-                        f"Cambio: {stock['change']:.2f} ({stock['change_percent']:.2f}%)"
-                    )
-            else:
-                st.write(f"No hay datos disponibles para el mercado {selected_market}.")
-
+            market_ticker = market_tickers[selected_market]
+            report = financial_generator.generate_market_report(market_ticker, top_n=5)
+            st.text(report)
         except Exception as e:
-            st.error(f"Error al cargar los datos: {e}")
+            st.error(f"Error al generar el informe: {e}")
+
 
 def scientific_content_generation(llm_provider):
     st.header("Contenido Científico Divulgativo")
