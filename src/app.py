@@ -1,45 +1,78 @@
 import streamlit as st
 from core.prompt_manager import PromptManager
 from core.llm_manager import LLMManager
-from core.financial_news_generator import FinancialNewsGenerator  # Nuevo
-from core.scientific_rag import ScientificContentRAG  # Nuevo
-from models.content import ContentManager
+from core.financial_news_generator import FinancialNewsGenerator
+from core.scientific_rag import ScientificContentRAG
+from core.image_generator import ImageGenerator
 from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS, LLM_PROVIDERS
-import os
+
 def main():
     st.title(APP_SETTINGS["title"])
-    st.sidebar.title("Opciones Avanzadas")
-
-    # Menú de funcionalidades avanzadas
-    feature_mode = st.sidebar.radio("Selecciona Modo", [
-        "Generación Estándar", 
-        "Noticias Financieras", 
-        "Contenido Científico"
-    ])
-
-    # Selector de proveedor LLM
-    llm_provider = st.sidebar.selectbox("Proveedor LLM", list(LLM_PROVIDERS.keys()))
-
-    if feature_mode == "Generación Estándar":
-        standard_content_generation(llm_provider)
     
-    elif feature_mode == "Noticias Financieras":
-        financial_news_generation(llm_provider)
-    
-    elif feature_mode == "Contenido Científico":
-        scientific_content_generation(llm_provider)
-
-def standard_content_generation(llm_provider):
-    # Selector de idioma
-    idioma = st.selectbox("Selecciona Idioma", [
+    # Primer paso: Selección de idioma
+    idioma = st.sidebar.radio("Selecciona Idioma", [
         "castellano", "english", "français", "italiano"
     ])
     
+    # Segundo paso: Selección de aplicación
+    aplicacion = st.sidebar.radio("Selecciona Aplicación", [
+        "Generar Contenido por Plataforma", 
+        "Información Financiera", 
+        "Contenido Científico"
+    ])
+    
+    # Selector de proveedor LLM
+    llm_provider = st.sidebar.selectbox("Proveedor LLM", list(LLM_PROVIDERS.keys()))
+    
+    # Flujo principal basado en la aplicación seleccionada
+    if aplicacion == "Generar Contenido por Plataforma":
+        generar_contenido_por_plataforma(idioma, llm_provider)
+    
+    elif aplicacion == "Información Financiera":
+        informacion_financiera(llm_provider)
+    
+    elif aplicacion == "Contenido Científico":
+        contenido_cientifico(idioma, llm_provider)
+
+def generar_contenido_por_plataforma(idioma, llm_provider):
+    # Selección de plataforma
     platform = st.selectbox("Selecciona la plataforma", AVAILABLE_PLATFORMS)
+    
+    # Tema y audiencia
     tema = st.text_input("¿Sobre qué tema quieres generar contenido?")
     audiencia = st.text_input("¿Cuál es tu audiencia objetivo?")
     
+    # Checkbox para generación de imagen
+    generar_imagen = st.checkbox("¿Quieres generar una imagen para acompañar el contenido?")
+    
+    # Opciones de imagen (solo si el checkbox está marcado)
+    image_generator = None
+    image_prompt = None
+    if generar_imagen:
+        # Opciones de generación de imagen
+        image_source = st.radio("Selecciona fuente de imagen", [
+            "Generar con IA", 
+            "Buscar en Unsplash"
+        ])
+        
+        # Selector de generador de IA
+        if image_source == "Generar con IA":
+            generator = st.selectbox("Selecciona generador de IA", [
+                'stable-diffusion', 
+                'dall-e'
+            ])
+        else:
+            generator = 'unsplash'
+        
+        # Prompt para imagen 
+        image_prompt = st.text_input(
+            "Descripción de la imagen (opcional)", 
+            value=tema
+        )
+    
+    # Botón de generación de contenido
     if st.button("Generar Contenido"):
+        # Generar contenido de texto
         prompt_manager = PromptManager()
         llm_manager = LLMManager(provider=llm_provider)
         
@@ -54,13 +87,30 @@ def standard_content_generation(llm_provider):
         
         st.write(f"### Contenido en {idioma.capitalize()}")
         st.write(content.text)
-    
-    # Resto del código de generación estándar...
+        
+        # Generación de imagen si está marcado el checkbox
+        if generar_imagen:
+            st.subheader("Imagen Generada")
+            
+            # Inicializar generador de imágenes
+            image_generator = ImageGenerator()
+            
+            # Generar o buscar imagen
+            image = image_generator.generate_image(
+                image_prompt or tema, 
+                platform, 
+                generator
+            )
+            
+            if image:
+                st.image(image, caption=image_prompt or tema)
+            else:
+                st.error("No se pudo generar/encontrar la imagen")
 
-
-
-def financial_news_generation(llm_provider):
+def informacion_financiera(llm_provider):
     st.header("Noticias Financieras por Mercado")
+
+    financial_generator = FinancialNewsGenerator()
 
     # Selector de mercado
     market_tickers = {
@@ -74,21 +124,14 @@ def financial_news_generation(llm_provider):
 
     if st.button("Mostrar Informe del Mercado"):
         try:
-            financial_generator = FinancialNewsGenerator()
             market_ticker = market_tickers[selected_market]
             report = financial_generator.generate_market_report(market_ticker, top_n=5)
             st.text(report)
         except Exception as e:
             st.error(f"Error al generar el informe: {e}")
 
-
-def scientific_content_generation(llm_provider):
+def contenido_cientifico(idioma, llm_provider):
     st.header("Contenido Científico Divulgativo")
-    
-    # Selector de idioma
-    idioma = st.selectbox("Selecciona Idioma", [
-        "castellano", "english", "français", "italiano"
-    ])
     
     dominio = st.selectbox("Área Científica", [
         "física cuántica", 
@@ -98,8 +141,6 @@ def scientific_content_generation(llm_provider):
     ])
     
     consulta = st.text_input("Consulta científica específica")
-    
-    platform = st.selectbox("Formato de Publicación", AVAILABLE_PLATFORMS)
     
     if st.button("Generar Contenido Científico"):
         scientific_rag = ScientificContentRAG(

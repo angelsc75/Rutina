@@ -2,13 +2,20 @@ from openai import OpenAI
 from config.settings import MODEL_SETTINGS, LLM_PROVIDERS
 from models.content import Content
 import uuid
-from langsmith import Client
+from langsmith import traceable
 from groq import Groq
 
 class LLMManager:
     def __init__(self, provider='openai'):
-        self.langsmith_client = Client()
-    
+        # Importación opcional de LangSmith
+        try:
+            from langsmith import Client
+            self.langsmith_client = Client()
+            self.use_langsmith = True
+        except ImportError:
+            self.langsmith_client = None
+            self.use_langsmith = False
+        
         self.provider = provider
         
         if provider == 'openai':
@@ -18,21 +25,14 @@ class LLMManager:
             self.client = Groq(api_key=LLM_PROVIDERS['groq']['api_key'])
             self.model = LLM_PROVIDERS['groq']['model']
     
-    def generate_content(self, prompt, platform, topic, audience):
-         # Crear un seguimiento de la solicitud en LangSmith
-        with self.langsmith_client.start_trace(name="content_generation") as trace:
-            trace.add_inputs({
-                "prompt": prompt,
-                "platform": platform,
-                "topic": topic,
-                "audience": audience
-            })
+    @traceable  # Decorador de LangSmith para trazabilidad
+    def generate_content(self, prompt, platform, topic, audience, language="castellano"):
         try:
             if self.provider == 'openai':
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
-                        {"role": "system", "content": "Eres un asistente experto en generación de contenido."},
+                        {"role": "system", "content": f"You are an expert content generation assistant. Respond in {language}."},
                         {"role": "user", "content": prompt}
                     ]
                 )
@@ -42,7 +42,7 @@ class LLMManager:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
-                        {"role": "system", "content": "Eres un asistente experto en generación de contenido."},
+                        {"role": "system", "content": f"You are an expert content generation assistant. Respond in {language}."},
                         {"role": "user", "content": prompt}
                     ]
                 )
@@ -53,14 +53,13 @@ class LLMManager:
                 platform=platform,
                 topic=topic,
                 audience=audience,
+                language=language,  # Add language to the Content model
                 text=generated_text
             )
-            trace.add_outputs({
-                    "generated_content": content.text,
-                    "content_id": content.id
-                })
+            
             return content
         
         except Exception as e:
-            trace.record_exception(e)
+            # Loguear el error si es necesario
+            print(f"Error en generación de contenido: {e}")
             raise

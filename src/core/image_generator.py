@@ -119,9 +119,7 @@ class ImageGenerator:
         try:
             # Obtener tamaño específico de plataforma, con fallback a un tamaño genérico
             size = self.PLATFORM_SIZES.get(platform, (1024, 1024))
-            
-            # Validar y ajustar tamaño
-            width, height = self._validate_and_adjust_size(*size)
+            width, height = size
 
             # Seleccionar generador de imagen
             if generator == 'unsplash':
@@ -139,8 +137,8 @@ class ImageGenerator:
                         prompt=prompt, 
                         num_inference_steps=20,
                         guidance_scale=7.5,
-                        width=width,   # Usar ancho ajustado
-                        height=height  # Usar alto ajustado
+                        width=width,   # Usar ancho original
+                        height=height  # Usar alto original
                     ).images
                     
                     if not images:
@@ -168,11 +166,39 @@ class ImageGenerator:
                     return None
 
                 try:
-                    # Implementar lógica para DALL-E
+                    # Mapear tamaños personalizados a tamaños estándar de DALL-E
+                    dall_e_sizes = ['256x256', '512x512', '1024x1024', '1024x1792', '1792x1024']
+                    
+                    # Función para encontrar el tamaño estándar más cercano
+                    def find_closest_size(width, height):
+                        # Si ya es un tamaño estándar, úsalo
+                        if f"{width}x{height}" in dall_e_sizes:
+                            return f"{width}x{height}"
+                        
+                        # Mapeo de tamaños específicos a los más cercanos de DALL-E
+                        size_mapping = {
+                            (1200, 632): '1024x1024',   # Blog/LinkedIn
+                            (1080, 1080): '1024x1024',  # Instagram
+                            (1200, 672): '1024x1024'    # Twitter
+                        }
+                        
+                        # Buscar mapeo directo primero
+                        if (width, height) in size_mapping:
+                            return size_mapping[(width, height)]
+                        
+                        # Si no hay mapeo directo, elegir el tamaño más cercano
+                        return '1024x1024'  # Fallback al tamaño estándar más común
+                    
+                    # Encontrar el tamaño más apropiado
+                    size_str = find_closest_size(width, height)
+                    
+                    self.logger.info(f"Usando tamaño DALL-E: {size_str} (original solicitado: {width}x{height})")
+                    
+                    # Generar imagen
                     response = self.openai_client.images.generate(
                         model="dall-e-3",
                         prompt=prompt,
-                        size=f"{width}x{height}"
+                        size=size_str
                     )
                     return response.data[0].url
                 except Exception as e:
