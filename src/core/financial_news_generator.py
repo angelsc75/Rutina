@@ -167,3 +167,67 @@ class FinancialNewsGenerator:
         
         return report
 
+    def get_financial_news(self, market_name):
+        """
+        Fetch financial news related to a specific market using NewsAPI
+        """
+        load_dotenv()
+        news_api_key = os.getenv("NEWSAPI_KEY")
+        
+        if not news_api_key:
+            raise ValueError("NewsAPI key (NEWSAPI_KEY) is not defined in .env file")
+        
+        # Expanded and more generic keywords
+        market_keywords = {
+            "S&P 500": ["S&P 500", "stock market", "wall street", "US stocks"],
+            "NASDAQ Composite": ["NASDAQ", "tech stocks", "technology market", "silicon valley"],
+            "Dow Jones": ["Dow Jones", "industrial stocks", "US market"],
+            "FTSE 100": ["FTSE 100", "UK stock market", "London stock exchange"],
+            "Nikkei 225": ["Nikkei 225", "Japanese stock market", "Tokyo stocks"]
+        }
+        
+        # Use a broader approach to find news
+        keywords = market_keywords.get(market_name, ["stock market"])
+        
+        # Try multiple queries if first attempt fails
+        for keyword in keywords:
+            url = "https://newsapi.org/v2/everything"  # Changed from top-headlines to everything
+            params = {
+                "apiKey": news_api_key,
+                "q": keyword,
+                "language": "en",
+                "sortBy": "publishedAt",
+                "pageSize": 5  # Increased to 5 to have more options
+            }
+            
+            try:
+                response = requests.get(url, params=params)
+                data = response.json()
+                
+                print(f"Debug - NewsAPI Response Status: {data.get('status')}")
+                print(f"Debug - Total Results for '{keyword}': {data.get('totalResults', 0)}")
+                
+                if data.get("status") == "ok" and data.get("totalResults", 0) > 0:
+                    # Extract relevant news information
+                    news_articles = []
+                    for article in data.get("articles", [])[:3]:  # Limit to 3 articles
+                        if article.get("title") and article.get("description"):
+                            news_articles.append({
+                                "title": article.get("title", ""),
+                                "description": article.get("description", ""),
+                                "url": article.get("url", ""),
+                                "source": article.get("source", {}).get("name", ""),
+                                "publishedAt": article.get("publishedAt", "")
+                            })
+                    
+                    if news_articles:
+                        return news_articles
+                
+                print(f"Debug - No articles found for keyword: {keyword}")
+            
+            except Exception as e:
+                print(f"Error fetching news for {keyword}: {e}")
+        
+        # If no news found after trying all keywords
+        print("Debug - No news found for any keyword")
+        return []

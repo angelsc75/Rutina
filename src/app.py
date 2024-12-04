@@ -127,10 +127,6 @@ def informacion_financiera(llm_provider):
         try:
             market_ticker = market_tickers[selected_market]
             
-            # Generar informe de texto
-            # report = financial_generator.generate_market_report(market_ticker, top_n=5)
-            # st.text(report)
-            
             # Obtener datos de mercado y acciones
             market_performance = financial_generator.get_market_performance(market_ticker)
             top_stocks = financial_generator.get_top_stocks_from_market(market_ticker, top_n=5)
@@ -166,6 +162,25 @@ def informacion_financiera(llm_provider):
                         else:
                             st.markdown(f"Cambio: :red[${stock['change']:.2f}]")
                             st.markdown(f"Cambio %: :red[{stock['change_percent']:.2f}%]")
+            
+            # Fetch and display financial news
+            st.subheader("Noticias Financieras Recientes")
+            
+            # Fetch news related to the selected market
+            news_articles = financial_generator.get_financial_news(selected_market)
+            
+            if news_articles:
+                for article in news_articles:
+                    with st.expander(article['title']):
+                        st.write(article['description'])
+                        st.markdown(f"**Fuente:** {article['source']}")
+                        st.markdown(f"[Leer más]({article['url']})")
+            else:
+                st.warning(f"No se encontraron noticias recientes para {selected_market}.")
+                st.info("Posibles razones:\n"
+                        "- Límite de solicitudes alcanzado\n"
+                        "- Problemas de conexión\n"
+                        "- Sin noticias disponibles en este momento")
             
         except Exception as e:
             st.error(f"Error al generar el informe: {e}")
