@@ -14,14 +14,14 @@ def main():
     # Primer paso: Selección de idioma
     idioma = st.sidebar.radio("Selecciona Idioma", [
         "castellano", "english", "français", "italiano"
-    ])
+    ], key="main_language_selector")
     
     # Segundo paso: Selección de aplicación
     aplicacion = st.sidebar.radio("Selecciona Aplicación", [
         "Generar Contenido por Plataforma", 
         "Información Financiera", 
         "Contenido Científico"
-    ])
+    ], key="app_selector")
     
     # Selector de proveedor LLM
     llm_provider = st.sidebar.selectbox("Proveedor LLM", list(LLM_PROVIDERS.keys()))
@@ -31,7 +31,7 @@ def main():
         generar_contenido_por_plataforma(idioma, llm_provider)
     
     elif aplicacion == "Información Financiera":
-        informacion_financiera(llm_provider)
+        informacion_financiera(idioma,llm_provider)
     
     elif aplicacion == "Contenido Científico":
         contenido_cientifico(idioma, llm_provider)
@@ -109,7 +109,7 @@ def generar_contenido_por_plataforma(idioma, llm_provider):
             else:
                 st.error("No se pudo generar/encontrar la imagen")
 
-def informacion_financiera(llm_provider):
+def informacion_financiera(idioma, llm_provider):  # Recibe el idioma como parámetro
     st.header("Noticias Financieras por Mercado")
 
     financial_generator = FinancialNewsGenerator()
@@ -121,8 +121,9 @@ def informacion_financiera(llm_provider):
         "FTSE 100": "^FTSE",
         "Nikkei 225": "^N225"
     }
+    
     selected_market = st.selectbox("Selecciona un Mercado", list(market_tickers.keys()))
-
+    
     if st.button("Mostrar Informe del Mercado"):
         try:
             market_ticker = market_tickers[selected_market]
@@ -166,8 +167,8 @@ def informacion_financiera(llm_provider):
             # Fetch and display financial news
             st.subheader("Noticias Financieras Recientes")
             
-            # Fetch news related to the selected market
-            news_articles = financial_generator.get_financial_news(selected_market)
+            # Fetch news related to the selected market and language
+            news_articles = financial_generator.get_financial_news(selected_market, language=idioma)
             
             if news_articles:
                 for article in news_articles:

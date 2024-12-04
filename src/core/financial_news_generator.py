@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import yfinance as yf
 import requests
 import os
+from deep_translator import GoogleTranslator
 
 
 class FinancialNewsGenerator:
@@ -167,9 +168,9 @@ class FinancialNewsGenerator:
         
         return report
 
-    def get_financial_news(self, market_name):
+    def get_financial_news(self, market_name, language="english"):
         """
-        Fetch financial news related to a specific market using NewsAPI
+        Fetch financial news related to a specific market using NewsAPI and translate if needed
         """
         load_dotenv()
         news_api_key = os.getenv("NEWSAPI_KEY")
@@ -221,7 +222,9 @@ class FinancialNewsGenerator:
                             })
                     
                     if news_articles:
-                        return news_articles
+                        # Translate articles if needed
+                        translated_articles = self.translate_news_articles(news_articles, language)
+                        return translated_articles
                 
                 print(f"Debug - No articles found for keyword: {keyword}")
             
@@ -231,3 +234,43 @@ class FinancialNewsGenerator:
         # If no news found after trying all keywords
         print("Debug - No news found for any keyword")
         return []
+    
+    def translate_news_articles(self, articles, target_language):
+        """
+        Translate news articles to the target language using deep_translator
+        """
+        # Mapping of language codes
+        language_map = {
+            "castellano": "es",
+            "english": "en",
+            "français": "fr",
+            "italiano": "it"
+        }
+        
+        # Get the target language code
+        target_lang_code = language_map.get(target_language, "en")
+        
+        # Only translate if target language is not English
+        if target_lang_code != "en":
+            translated_articles = []
+            
+            for article in articles:
+                try:
+                    # Translate title and description
+                    translated_title = GoogleTranslator(source='auto', target=target_lang_code).translate(article['title'])
+                    translated_description = GoogleTranslator(source='auto', target=target_lang_code).translate(article['description'])
+                    
+                    translated_articles.append({
+                        "title": translated_title,
+                        "description": translated_description,
+                        "url": article['url'],
+                        "source": article['source']
+                    })
+                except Exception as e:
+                    print(f"Translation error: {e}")
+                    # Fallback to original article if translation fails
+                    translated_articles.append(article)
+            
+            return translated_articles
+        
+        return articles
