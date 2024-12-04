@@ -23,7 +23,7 @@ class FinancialNewsGenerator:
                 "^GSPC": ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "TSLA", "GOOG", "UNH", "XOM"],
                 "^IXIC": ["AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "TSLA", "INTC", "CSCO", "AMD"],
                 "^FTSE": ["SHEL", "HSBA", "LSEG", "AZN", "BP", "GSK", "ULVR", "RIO", "REL", "DGE"],
-                "^N225": ["7203.T", "9984.T", "7267.T", "9433.T", "6758.T"]  # Toyota, Softbank, Honda, NTT, Sony
+                "^N225": ["7203.T", "9984.T", "7267.T", "9433.T", "6758.T"]
             }
 
             components = market_components.get(etf_ticker, [])
@@ -42,8 +42,14 @@ class FinancialNewsGenerator:
                     }
                     top_stocks.append(stock_info)
 
-            top_stocks.sort(key=lambda x: abs(x['change_percent']), reverse=True)
-            return top_stocks[:top_n]
+            # Filter out stocks with extreme changes
+            filtered_stocks = [
+                stock for stock in top_stocks 
+                if abs(stock['change_percent']) < 20  # Limit to ±20% change
+            ]
+
+            filtered_stocks.sort(key=lambda x: abs(x['change_percent']), reverse=True)
+            return filtered_stocks[:top_n]
         except Exception as e:
             print(f"Error fetching data from Yahoo Finance: {e}")
             return []
@@ -105,34 +111,59 @@ class FinancialNewsGenerator:
             print(f"Alpha Vantage fallback failed: {e}")
 
         return []
+    def get_market_performance(self, market_ticker):
+        """
+        Fetch overall market performance for a given index.
+        """
+        try:
+            market = yf.Ticker(market_ticker)
+            historical_data = market.history(period="1d")
+            
+            if historical_data.empty:
+                return None
+            
+            # Calculate market performance metrics
+            open_price = historical_data['Open'].iloc[0]
+            close_price = historical_data['Close'].iloc[-1]
+            change = close_price - open_price
+            change_percent = (change / open_price) * 100
+            
+            return {
+                "current_price": close_price,
+                "change": change,
+                "change_percent": change_percent
+            }
+        except Exception as e:
+            print(f"Error fetching market performance: {e}")
+            return None
     def generate_market_report(self, market_ticker, top_n=5):
         """
-        Generate a report for the top stocks in a given market.
-
-        Args:
-            market_ticker (str): Ticker symbol of the market index or sector.
-            top_n (int): Number of top stocks to include in the report. Defaults to 5.
-
-        Returns:
-            str: Market performance summary.
+        Generate a comprehensive market report.
         """
-        # Llama a la función que determina la fuente de datos y obtiene los valores principales
+        # Fetch top stocks
         top_stocks = self.get_top_stocks_from_market(market_ticker, top_n)
         
-        if not top_stocks:
-            return f"No data available for market: {market_ticker}"
-
-        # Construcción del informe
-        report = f"Top {top_n} Stocks in {market_ticker}:\n"
+        # Fetch market performance
+        market_performance = self.get_market_performance(market_ticker)
+        
+        # Construct report
+        report = f"Market: {market_ticker}\n"
+        
+        if market_performance:
+            report += (
+                f"Market Performance:\n"
+                f"  Current Price: ${market_performance['current_price']:.2f}\n"
+                f"  Change: ${market_performance['change']:.2f} "
+                f"({market_performance['change_percent']:.2f}%)\n\n"
+            )
+        
+        report += f"Top {top_n} Stocks:\n"
         for stock in top_stocks:
-            # Diferenciación entre Yahoo Finance (diccionario) y Alpha Vantage (formato de texto simple)
-            if isinstance(stock, dict):  # Yahoo Finance
-                report += (
-                    f"  {stock['name']} ({stock['symbol']}):\n"
-                    f"    Price: ${stock['price']:.2f}\n"
-                    f"    Change: ${stock['change']:.2f} ({stock['change_percent']:.2f}%)\n"
-                )
-            else:  # Alpha Vantage
-                report += f"  {stock}\n"
+            report += (
+                f"  {stock['name']} ({stock['symbol']}):\n"
+                f"    Price: ${stock['price']:.2f}\n"
+                f"    Change: ${stock['change']:.2f} ({stock['change_percent']:.2f}%)\n"
+            )
+        
         return report
 

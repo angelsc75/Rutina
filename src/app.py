@@ -5,6 +5,8 @@ from core.financial_news_generator import FinancialNewsGenerator
 from core.scientific_rag import ScientificContentRAG
 from core.image_generator import ImageGenerator
 from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS, LLM_PROVIDERS
+import plotly.graph_objs as plt
+import yfinance as yf
 
 def main():
     st.title(APP_SETTINGS["title"])
@@ -112,7 +114,6 @@ def informacion_financiera(llm_provider):
 
     financial_generator = FinancialNewsGenerator()
 
-    # Selector de mercado
     market_tickers = {
         "S&P 500": "^GSPC",
         "NASDAQ Composite": "^IXIC",
@@ -125,8 +126,47 @@ def informacion_financiera(llm_provider):
     if st.button("Mostrar Informe del Mercado"):
         try:
             market_ticker = market_tickers[selected_market]
-            report = financial_generator.generate_market_report(market_ticker, top_n=5)
-            st.text(report)
+            
+            # Generar informe de texto
+            # report = financial_generator.generate_market_report(market_ticker, top_n=5)
+            # st.text(report)
+            
+            # Obtener datos de mercado y acciones
+            market_performance = financial_generator.get_market_performance(market_ticker)
+            top_stocks = financial_generator.get_top_stocks_from_market(market_ticker, top_n=5)
+            
+            # Mostrar información general del mercado
+            if market_performance:
+                st.subheader(f"Rendimiento de {selected_market}")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Precio Actual", f"${market_performance['current_price']:.2f}")
+                with col2:
+                    st.metric("Cambio", f"${market_performance['change']:.2f}", 
+                              f"{market_performance['change_percent']:.2f}%")
+                with col3:
+                    st.metric("Tendencia", 
+                              "Positiva" if market_performance['change'] > 0 else "Negativa")
+            
+            # Mostrar información de acciones
+            st.subheader("Acciones Destacadas")
+            cols = st.columns(5)
+            
+            for i, stock in enumerate(top_stocks):
+                with cols[i]:
+                    with st.container(border=True):
+                        st.markdown(f"**{stock['name']}**")
+                        st.markdown(f"Símbolo: `{stock['symbol']}`")
+                        st.markdown(f"Precio: **${stock['price']:.2f}**")
+                        
+                        # Colorear el cambio según sea positivo o negativo
+                        if stock['change'] >= 0:
+                            st.markdown(f"Cambio: :green[+${stock['change']:.2f}]")
+                            st.markdown(f"Cambio %: :green[+{stock['change_percent']:.2f}%]")
+                        else:
+                            st.markdown(f"Cambio: :red[${stock['change']:.2f}]")
+                            st.markdown(f"Cambio %: :red[{stock['change_percent']:.2f}%]")
+            
         except Exception as e:
             st.error(f"Error al generar el informe: {e}")
 
