@@ -34,7 +34,7 @@ def main():
         informacion_financiera(idioma,llm_provider)
     
     elif aplicacion == "Contenido Científico":
-        contenido_cientifico(idioma, llm_provider)
+        contenido_cientifico(idioma,llm_provider)
 
 def generar_contenido_por_plataforma(idioma, llm_provider):
     # Selección de plataforma
