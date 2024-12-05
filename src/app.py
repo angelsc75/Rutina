@@ -7,6 +7,7 @@ from core.image_generator import ImageGenerator
 from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS, LLM_PROVIDERS
 import plotly.graph_objs as plt
 import yfinance as yf
+from core.sientific_agents import MultiAgentSystem
 
 def main():
     st.title(APP_SETTINGS["title"])
@@ -197,23 +198,42 @@ def contenido_cientifico(idioma, llm_provider):
     ])
     
     consulta = st.text_input("Consulta científica específica")
+    simplificacion = st.checkbox("Simplificar para público general")
     
     if st.button("Generar Contenido Científico"):
-        scientific_rag = ScientificContentRAG(
-            domain=dominio, 
-            language=idioma
-        )
+        # Validar que se haya ingresado una consulta
+        if not consulta:
+            st.warning("Por favor, ingrese una consulta científica.")
+            return
         
-        content = scientific_rag.generate_scientific_content(consulta)
+        # Inicializar sistema multiagente
+        agent_system = MultiAgentSystem(language=idioma, llm_provider=llm_provider)
         
+        # Realizar consultas y simplificaciones
+        retrieval_result = agent_system.dispatch("retrieval", consulta)
+        
+        if retrieval_result is None or "Error" in str(retrieval_result):
+            st.error(f"Error al recuperar contenido científico: {retrieval_result}")
+            return
+        
+        if simplificacion:
+            simplified_content = agent_system.dispatch("simplification", retrieval_result)
+            if simplified_content is None or "Error" in str(simplified_content):
+                st.error(f"Error al simplificar contenido: {simplified_content}")
+                return
+        else:
+            simplified_content = retrieval_result
+        
+        enriched_content = agent_system.dispatch("graph_enrichment", simplified_content)
+        
+        if enriched_content is None or "Error" in str(enriched_content):
+            st.error(f"Error al enriquecer contenido: {enriched_content}")
+            return
+        
+        # Mostrar resultados
         st.write(f"### Contenido Científico en {idioma.capitalize()}")
-        st.write(content.text)
-        
-        with st.expander("Referencias Científicas"):
-            papers = scientific_rag.fetch_arxiv_papers()
-            for paper in papers:
-                st.write(f"**{paper['title']}**")
-                st.write(paper['summary'])
+        st.write(enriched_content)
+
 
 if __name__ == "__main__":
     main()
