@@ -1,3 +1,4 @@
+import json
 import arxiv
 import openai
 from groq import Groq
@@ -153,73 +154,175 @@ class ScientificContentRAG:
         return response.choices[0].message.content
 
     def _generate_knowledge_graph(self, papers: List[Dict]) -> List[Dict]:
-        """
-        Genera un grafo de conocimiento basado en relaciones semánticas de los papers.
-        
-        :param papers: Lista de papers
-        :return: Lista de relaciones de conocimiento
-        """
         if not papers:
             return []
         
         try:
-            # Usar LLM para generar relaciones semánticas más inteligentes
-            paper_texts = "\n\n".join([
-                f"Paper: {p['title']}\nSummary: {p['summary']}" 
-                for p in papers
-            ])
-            
+            # Usar un prompt más detallado para extraer relaciones más significativas
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system", 
-                        "content": "You are an expert scientific knowledge graph generator. Extract key semantic relationships between scientific concepts."
+                        "content": """
+                        You are an advanced scientific knowledge graph generator. 
+                        Your task is to extract the most meaningful and insightful 
+                        semantic relationships between scientific concepts.
+                        
+                        Evaluation criteria:
+                        - Prioritize causal relationships
+                        - Focus on conceptual connections
+                        - Highlight novel or unexpected links
+                        - Ensure scientific accuracy
+                        """
                     },
                     {
                         "role": "user", 
                         "content": f"""
-                        Analyze these scientific papers and generate 3-5 meaningful knowledge graph relationships.
-                        Format each relationship as: 
-                        source_concept (paper title) | relation type | target_concept (another paper title or key concept)
+                        Analyze these scientific papers and generate the most significant knowledge graph relationships.
+                        
+                        Guidelines:
+                        - Extract 3-5 most impactful conceptual relationships
+                        - Provide a brief (1-2 word) explanation for each relationship
+                        - Format: Source Concept | Relationship Type | Target Concept | Brief Explanation
 
-                        Papers:
-                        {paper_texts}
+                        Papers Summaries:
+                        {"\n\n".join([
+                            f"Paper {i+1}: Title: {p['title']}\nSummary: {p['summary']}" 
+                            for i, p in enumerate(papers)
+                        ])}
+                        """
+                    }
+                ],
+                temperature=0.7  # Slightly higher creativity
+            )
+            
+            # Procesamiento avanzado de relaciones
+            relations_text = response.choices[0].message.content
+            graph_enrichment = []
+            
+            for line in relations_text.split('\n'):
+                if '|' in line:
+                    parts = [part.strip() for part in line.split('|')]
+                    if len(parts) >= 3:
+                        relation_dict = {
+                            'source_concept': parts[0],
+                            'relation': parts[1],
+                            'target_concept': parts[2],
+                            'explanation': parts[3] if len(parts) > 3 else "No explanation"
+                        }
+                        graph_enrichment.append(relation_dict)
+            
+            return graph_enrichment
+        
+        except Exception as e:
+            print(f"Advanced graph generation error: {e}")
+            # Fallback with more structured random generation
+            return [
+                {
+                    'source_concept': papers[0]['title'].split()[:2],
+                    'relation': random.choice([
+                        'theoretical connection', 
+                        'methodological influence', 
+                        'conceptual derivation'
+                    ]),
+                    'target_concept': papers[-1]['title'].split()[-2:],
+                    'explanation': 'Preliminary relationship'
+                }
+                for _ in range(3)
+            ]
+    def _enrich_graph_relationships(self, graph_enrichment: List[Dict]) -> List[Dict]:
+        """
+        Método para enriquecer las relaciones con metadatos adicionales
+        Incluye más registro de errores y manejo de casos especiales
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "Enrich scientific concept relationships with context and significance."
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"""
+                        Provide a detailed enrichment of these scientific relationships in strict JSON format.
+                        
+                        Original Relationships:
+                        {json.dumps(graph_enrichment, indent=2)}
+                        
+                        FORMAT STRICTLY AS:
+                        [
+                            {{
+                                "source_concept": "string",
+                                "relation": "string",
+                                "target_concept": "string",
+                                "significance": "high/medium/low",
+                                "implications": "Short description",
+                                "confidence_level": "high/medium/low"
+                            }}
+                        ]
+                        
+                        CRITICAL: Respond ONLY with VALID JSON. No additional text.
                         """
                     }
                 ]
             )
             
-            # Parsear respuesta del LLM
-            relations_text = response.choices[0].message.content
+            # Obtener texto de respuesta
+            response_text = response.choices[0].message.content.strip()
             
-            # Parsear texto de relaciones
-            graph_enrichment = []  # Inicializa una lista vacía para almacenar las relaciones
-
-            for line in relations_text.split('\n'):  # Divide el texto en líneas
-                if '|' in line:  # Verifica si la línea contiene el separador '|'
-                    parts = line.split('|')  # Divide la línea en partes usando '|'
-                    
-                    if len(parts) == 3:  # Verifica que la línea tenga exactamente 3 partes
-                        graph_enrichment.append({  # Agrega un diccionario a la lista
-                            'source_concept': parts[0].strip(),  # Primer elemento (concepto fuente)
-                            'relation': parts[1].strip(),  # Segundo elemento (tipo de relación)
-                            'target_concept': parts[2].strip()  # Tercer elemento (concepto destino)
-                        })
+            # Depuración: imprimir respuesta raw
+            print("Raw Response:", response_text)
             
-            return graph_enrichment
+            # Intentar parsear JSON de múltiples maneras
+            def parse_json(text):
+                try:
+                    # Método 1: Parseo directo
+                    parsed = json.loads(text)
+                    return parsed if isinstance(parsed, list) else None
+                except json.JSONDecodeError:
+                    try:
+                        # Método 2: Remover texto antes y después del JSON
+                        import re
+                        json_match = re.search(r'\[.*\]', text, re.DOTALL | re.MULTILINE)
+                        if json_match:
+                            return json.loads(json_match.group(0))
+                    except Exception as e:
+                        print(f"JSON Extraction Error: {e}")
+                    return None
+            
+            # Intentar parsear
+            parsed_data = parse_json(response_text)
+            
+            if parsed_data is None:
+                print("CRITICAL: Could not parse JSON")
+                return graph_enrichment
+            
+            # Validar la estructura de los datos
+            def validate_enrichment(item):
+                required_keys = [
+                    'source_concept', 'relation', 'target_concept', 
+                    'significance', 'implications', 'confidence_level'
+                ]
+                return all(key in item for key in required_keys)
+            
+            # Filtrar y validar entradas
+            valid_enrichments = [
+                item for item in parsed_data 
+                if validate_enrichment(item)
+            ]
+            
+            if not valid_enrichments:
+                print("No valid enrichments found. Using original data.")
+                return graph_enrichment
+            
+            return valid_enrichments
         
         except Exception as e:
-            print(f"Error generating knowledge graph: {e}")
-            # Fallback to random relations if generation fails
-            return [
-                {
-                    'source_concept': random.choice(papers)['title'].split()[:2],
-                    'relation': random.choice(['related to', 'influences', 'derives from']),
-                    'target_concept': random.choice(papers)['title'].split()[-2:]
-                }
-                for _ in range(3)
-            ]
+            print(f"Enrichment process failed: {e}")
+            return graph_enrichment        
 
     def generate_scientific_graph_report(self, query: str) -> Dict:
         """
@@ -246,6 +349,11 @@ class ScientificContentRAG:
         
         # Generar grafo de conocimiento más inteligente
         graph_enrichment = self._generate_knowledge_graph(papers)
+        try:
+            graph_enrichment = self._enrich_graph_relationships(graph_enrichment)
+        except Exception as e:
+            print(f"Graph enrichment failed: {e}")
+            # Use original graph_enrichment if enrichment fails
         
         return {
             'scientific_content': scientific_content,
