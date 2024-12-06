@@ -192,7 +192,7 @@ def informacion_financiera(idioma, llm_provider):  # Recibe el idioma como pará
             st.error(f"Error al generar el informe: {e}")
 
 def contenido_cientifico(idioma, llm_provider):
-    # Validaciones y selección más robustas
+     # Validaciones y selección más robustas
     dominio = st.selectbox("Área Científica", [
         "física cuántica", 
         "inteligencia artificial", 
@@ -201,54 +201,34 @@ def contenido_cientifico(idioma, llm_provider):
     ])
     
     consulta = st.text_input("Consulta científica específica")
-    simplificacion = st.checkbox("Simplificar para público general")
     
     if st.button("Generar Contenido Científico"):
         if not consulta:
             st.warning("Por favor, ingrese una consulta científica.")
             return
         
-        agent_system = MultiAgentSystem(language=idioma, llm_provider=llm_provider)
+        rag_system = ScientificContentRAG(
+            domain=dominio, 
+            language=idioma, 
+            provider=llm_provider
+        )
         
-        # Pasar dominio a los métodos
-        retrieval_result = agent_system.dispatch("retrieval", consulta, domain=dominio)
+        try:
+            result = rag_system.generate_scientific_graph_report(consulta)
+            
+            # Mostrar contenido científico
+            st.write(result['scientific_content'])
+            
+            # Mostrar papers usados
+            st.subheader("Papers Científicos Utilizados")
+            for paper in result['papers']:
+                with st.expander(paper['title']):
+                    st.write(f"**Resumen:** {paper['summary']}")
+                    st.write(f"**Autores:** {', '.join(paper['authors'])}")
+                    st.markdown(f"[Enlace al paper]({paper['url']})")
         
-        if not retrieval_result:
-            st.error("No se encontraron documentos científicos relevantes.")
-            return
-        
-        # Convertir resultados a texto para simplificación
-        retrieval_text = " ".join([
-            f"Título: {paper['title']} - Resumen: {paper['summary']}" 
-            for paper in retrieval_result
-        ])
-        
-        if simplificacion:
-            simplified_content = agent_system.dispatch(
-                "simplification", 
-                content=retrieval_text
-            )
-        else:
-            simplified_content = retrieval_text
-        
-        # Enriquecer con grafo de conocimiento
-        enriched_content = agent_system.dispatch(
-            "graph_enrichment", 
-            content=simplified_content, 
-            domain=dominio
-            )
-        
-        # Formatear resultados
-        st.write(f"### Contenido Científico en {idioma.capitalize()}")
-        
-        # Mostrar contenido enriquecido de manera más informativa
-        if isinstance(enriched_content, list):
-            for item in enriched_content:
-                st.write(f"**Concepto:** {item.get('node')}")
-                st.write(f"**Relación:** {item.get('relation')}")
-                st.write(f"**Concepto Relacionado:** {item.get('related_node')}")
-        else:
-            st.write(enriched_content)
+        except Exception as e:
+            st.error(f"Error en generación de contenido: {e}")
 
 def contenido_cientifico_con_grafos(idioma, llm_provider):
     st.header("Generación de Contenido Científico con Grafos")
