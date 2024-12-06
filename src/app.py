@@ -8,6 +8,7 @@ from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS, LLM_PROVIDERS
 import plotly.graph_objs as plt
 import yfinance as yf
 from core.sientific_agents import MultiAgentSystem
+from core.scientific_rag import ScientificContentRAG
 
 def main():
     st.title(APP_SETTINGS["title"])
@@ -21,7 +22,8 @@ def main():
     aplicacion = st.sidebar.radio("Selecciona Aplicación", [
         "Generar Contenido por Plataforma", 
         "Información Financiera", 
-        "Contenido Científico"
+        "Contenido Científico",
+        "Contenido Científico con Grafos"  # Nueva opción
     ], key="app_selector")
     
     # Selector de proveedor LLM
@@ -36,6 +38,8 @@ def main():
     
     elif aplicacion == "Contenido Científico":
         contenido_cientifico(idioma,llm_provider)
+    elif aplicacion == "Contenido Científico con Grafos":
+        contenido_cientifico_con_grafos(idioma, llm_provider)
 
 def generar_contenido_por_plataforma(idioma, llm_provider):
     # Selección de plataforma
@@ -188,8 +192,7 @@ def informacion_financiera(idioma, llm_provider):  # Recibe el idioma como pará
             st.error(f"Error al generar el informe: {e}")
 
 def contenido_cientifico(idioma, llm_provider):
-    st.header("Contenido Científico Divulgativo")
-    
+    # Validaciones y selección más robustas
     dominio = st.selectbox("Área Científica", [
         "física cuántica", 
         "inteligencia artificial", 
@@ -201,39 +204,101 @@ def contenido_cientifico(idioma, llm_provider):
     simplificacion = st.checkbox("Simplificar para público general")
     
     if st.button("Generar Contenido Científico"):
-        # Validar que se haya ingresado una consulta
         if not consulta:
             st.warning("Por favor, ingrese una consulta científica.")
             return
         
-        # Inicializar sistema multiagente
         agent_system = MultiAgentSystem(language=idioma, llm_provider=llm_provider)
         
-        # Realizar consultas y simplificaciones
-        retrieval_result = agent_system.dispatch("retrieval", consulta)
+        # Pasar dominio a los métodos
+        retrieval_result = agent_system.dispatch("retrieval", consulta, domain=dominio)
         
-        if retrieval_result is None or "Error" in str(retrieval_result):
-            st.error(f"Error al recuperar contenido científico: {retrieval_result}")
+        if not retrieval_result:
+            st.error("No se encontraron documentos científicos relevantes.")
             return
+        
+        # Convertir resultados a texto para simplificación
+        retrieval_text = " ".join([
+            f"Título: {paper['title']} - Resumen: {paper['summary']}" 
+            for paper in retrieval_result
+        ])
         
         if simplificacion:
-            simplified_content = agent_system.dispatch("simplification", retrieval_result)
-            if simplified_content is None or "Error" in str(simplified_content):
-                st.error(f"Error al simplificar contenido: {simplified_content}")
-                return
+            simplified_content = agent_system.dispatch(
+                "simplification", 
+                content=retrieval_text
+            )
         else:
-            simplified_content = retrieval_result
+            simplified_content = retrieval_text
         
-        enriched_content = agent_system.dispatch("graph_enrichment", simplified_content)
+        # Enriquecer con grafo de conocimiento
+        enriched_content = agent_system.dispatch(
+            "graph_enrichment", 
+            content=simplified_content, 
+            domain=dominio
+            )
         
-        if enriched_content is None or "Error" in str(enriched_content):
-            st.error(f"Error al enriquecer contenido: {enriched_content}")
+        # Formatear resultados
+        st.write(f"### Contenido Científico en {idioma.capitalize()}")
+        
+        # Mostrar contenido enriquecido de manera más informativa
+        if isinstance(enriched_content, list):
+            for item in enriched_content:
+                st.write(f"**Concepto:** {item.get('node')}")
+                st.write(f"**Relación:** {item.get('relation')}")
+                st.write(f"**Concepto Relacionado:** {item.get('related_node')}")
+        else:
+            st.write(enriched_content)
+
+def contenido_cientifico_con_grafos(idioma, llm_provider):
+    st.header("Generación de Contenido Científico con Grafos")
+    
+    # Mismos dominios que en contenido_cientifico
+    dominio = st.selectbox("Área Científica", [
+        "física cuántica", 
+        "inteligencia artificial", 
+        "biomedicina", 
+        "astrofísica"
+    ])
+    
+    consulta = st.text_input("Consulta científica específica")
+    
+    # Opciones adicionales para Graph RAG
+    mostrar_grafo = st.checkbox("Mostrar relaciones del grafo de conocimiento")
+    max_papers = st.slider("Número máximo de papers", 1, 20, 5)
+    
+    if st.button("Generar Contenido con Grafos"):
+        if not consulta:
+            st.warning("Por favor, ingrese una consulta científica.")
             return
         
-        # Mostrar resultados
-        st.write(f"### Contenido Científico en {idioma.capitalize()}")
-        st.write(enriched_content)
-
-
+        # Inicializar ScientificContentRAG
+        rag_system = ScientificContentRAG(domain=dominio, language=idioma)
+        
+        try:
+            # Generar informe científico
+            result = rag_system.generate_scientific_graph_report(consulta)
+            
+            # Mostrar papers recuperados
+            st.subheader("Papers Científicos Recuperados")
+            for paper in result['papers'][:max_papers]:
+                with st.expander(paper['title']):
+                    st.write(f"**Resumen:** {paper['summary']}")
+                    st.write(f"**Autores:** {', '.join(paper['authors'])}")
+                    st.markdown(f"[Enlace al paper]({paper['url']})")
+            
+            # Mostrar enriquecimiento de grafo si está habilitado
+            if mostrar_grafo:
+                st.subheader("Relaciones de Conocimiento")
+                for rel in result['graph_enrichment']:
+                    st.markdown(f"""
+                    - **{rel['source_concept']}** 
+                    *{rel['relation']}* 
+                    **{rel['target_concept']}**
+                    """)
+        
+        except Exception as e:
+            st.error(f"Error en generación de contenido: {e}")
+            
 if __name__ == "__main__":
     main()
