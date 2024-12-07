@@ -32,7 +32,7 @@ class PromptManager:
                               
                               Note: Respond in Spanish (castellano).""",
                 "medium":    """Write a comprehensive Medium article about {app_name}, an innovative content generation application.
-
+            The title of the article must be {article_title}
             Detailed description of the application, its features, and functionalities.
             Length: Approximately 2000 words
             Target Audience: Developers, tech entrepreneurs, and AI enthusiasts

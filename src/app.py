@@ -286,7 +286,13 @@ def contenido_cientifico_con_grafos(idioma, llm_provider):
             st.error(f"Error en generación de contenido: {e}")
             
 def generar_articulo_medium(idioma, llm_provider):
-    st.header("Generate Comprehensive Medium Article")
+    st.warning("⚠️ Importante: Para generar artículos de Medium, se utilizará:\n- Proveedor LLM: OpenAI\n- Idioma: Castellano")
+    
+    # Forzar OpenAI y castellano
+    llm_provider = 'openai'
+    idioma = 'castellano'
+    
+    st.header("Generar Artículo Completo de Medium")
     
     # Input para el título del artículo
     article_title = st.text_input(
@@ -300,8 +306,13 @@ def generar_articulo_medium(idioma, llm_provider):
         placeholder="e.g., ContentCraft AI, SmartContent Generator"
     )
     
-    if not article_title or not app_name:
-        st.warning("Please provide both an article title and application name.")
+    # Validar longitud del título
+    if len(article_title) < 10:
+        st.warning("El título debe tener al menos 10 caracteres.")
+        return
+    
+    if not app_name:
+        st.warning("Please provide an application name.")
         return
     
     # Recopilar archivos del proyecto para incluir en el artículo
@@ -335,7 +346,7 @@ def generar_articulo_medium(idioma, llm_provider):
         # Generar prompt para Medium
         prompt = prompt_manager.get_prompt(
             "medium", 
-            "AI, Mental Health, and Content Creation", 
+            article_title,  # Usar el título proporcionado como tema
             "Professionals and technology enthusiasts", 
             idioma=idioma,
             article_title=article_title,
@@ -349,7 +360,7 @@ def generar_articulo_medium(idioma, llm_provider):
         content = llm_manager.generate_content(
             prompt_con_codigo, 
             "medium", 
-            f"Comprehensive Analysis of {app_name}", 
+            article_title,  # Usar el título proporcionado 
             "Tech developers"
         )
         
@@ -362,7 +373,7 @@ def generar_articulo_medium(idioma, llm_provider):
             data=content.text,
             file_name=f"{article_title.replace(' ', '_')}_medium_article.md",
             mime="text/markdown"
-        )            
+        )         
             
 if __name__ == "__main__":
     main()
