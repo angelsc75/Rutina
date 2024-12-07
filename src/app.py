@@ -23,7 +23,8 @@ def main():
         "Generar Contenido por Plataforma", 
         "Información Financiera", 
         "Contenido Científico",
-        "Contenido Científico con Grafos"  # Nueva opción
+        "Contenido Científico con Grafos",
+        "Artículo de Medium"  # Nueva opción
     ], key="app_selector")
     
     # Selector de proveedor LLM
@@ -38,8 +39,12 @@ def main():
     
     elif aplicacion == "Contenido Científico":
         contenido_cientifico(idioma,llm_provider)
+    
     elif aplicacion == "Contenido Científico con Grafos":
         contenido_cientifico_con_grafos(idioma, llm_provider)
+    
+    elif aplicacion == "Artículo de Medium":
+        generar_articulo_medium(idioma, llm_provider)
 
 def generar_contenido_por_plataforma(idioma, llm_provider):
     # Selección de plataforma
@@ -279,6 +284,85 @@ def contenido_cientifico_con_grafos(idioma, llm_provider):
         
         except Exception as e:
             st.error(f"Error en generación de contenido: {e}")
+            
+def generar_articulo_medium(idioma, llm_provider):
+    st.header("Generate Comprehensive Medium Article")
+    
+    # Input para el título del artículo
+    article_title = st.text_input(
+        "What is the title of your article?", 
+        placeholder="e.g., 'Mindful Machines: Transforming Creative Stress through Intelligent Automation'"
+    )
+    
+    # Input para el nombre de la aplicación
+    app_name = st.text_input(
+        "What is the name of your application?", 
+        placeholder="e.g., ContentCraft AI, SmartContent Generator"
+    )
+    
+    if not article_title or not app_name:
+        st.warning("Please provide both an article title and application name.")
+        return
+    
+    # Recopilar archivos del proyecto para incluir en el artículo
+    archivos_proyecto = [
+        "src/app.py", 
+        "src/core/llm_manager.py", 
+        "src/core/prompt_manager.py", 
+        "src/core/financial_news_generator.py",
+        "src/core/scientific_rag.py"
+    ]
+    
+    codigos_proyecto = {}
+    for archivo in archivos_proyecto:
+        try:
+            with open(archivo, 'r', encoding='utf-8') as f:
+                codigos_proyecto[archivo] = f.read()
+        except Exception as e:
+            st.warning(f"Could not read {archivo}: {e}")
+    
+    # Preparar códigos para incluir en el artículo
+    codigo_completo = "\n\n---\n\n".join([
+        f"## Code for {archivo}\n```python\n{codigo}\n```" 
+        for archivo, codigo in codigos_proyecto.items()
+    ])
+    
+    if st.button("Generate Medium Article"):
+        # Inicializar managers
+        prompt_manager = PromptManager()
+        llm_manager = LLMManager(provider=llm_provider)
+        
+        # Generar prompt para Medium
+        prompt = prompt_manager.get_prompt(
+            "medium", 
+            "AI, Mental Health, and Content Creation", 
+            "Professionals and technology enthusiasts", 
+            idioma=idioma,
+            article_title=article_title,
+            app_name=app_name
+        )
+        
+        # Añadir códigos al final del prompt
+        prompt_con_codigo = f"{prompt}\n\n## Detailed Code Components\n\n{codigo_completo}"
+        
+        # Generar contenido
+        content = llm_manager.generate_content(
+            prompt_con_codigo, 
+            "medium", 
+            f"Comprehensive Analysis of {app_name}", 
+            "Tech developers"
+        )
+        
+        st.write("### Generated Medium Article")
+        st.write(content.text)
+        
+        # Opción de guardar artículo
+        st.download_button(
+            label="Download Article",
+            data=content.text,
+            file_name=f"{article_title.replace(' ', '_')}_medium_article.md",
+            mime="text/markdown"
+        )            
             
 if __name__ == "__main__":
     main()
