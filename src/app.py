@@ -1,3 +1,4 @@
+import graphviz
 import streamlit as st
 from core.prompt_manager import PromptManager
 from core.llm_manager import LLMManager
@@ -9,7 +10,8 @@ import plotly.graph_objs as plt
 import yfinance as yf
 from core.sientific_agents import MultiAgentSystem
 from core.scientific_rag import ScientificContentRAG
-
+import io
+import zipfile
 def main():
     st.title(APP_SETTINGS["title"])
     
@@ -24,7 +26,8 @@ def main():
         "Información Financiera", 
         "Contenido Científico",
         "Contenido Científico con Grafos",
-        "Artículo de Medium"  # Nueva opción
+        "Artículo de Medium",
+        "Funcionalidades Desarrollador"  # Nueva opción
     ], key="app_selector")
     
     # Selector de proveedor LLM
@@ -45,6 +48,9 @@ def main():
     
     elif aplicacion == "Artículo de Medium":
         generar_articulo_medium(idioma, llm_provider)
+    
+    elif aplicacion == "Funcionalidades Desarrollador":
+        generar_recursos_desarrollador(idioma, llm_provider)
 
 def generar_contenido_por_plataforma(idioma, llm_provider):
     # Selección de plataforma
@@ -273,13 +279,38 @@ def contenido_cientifico_con_grafos(idioma, llm_provider):
                     st.markdown(f"[Enlace al paper]({paper['url']})")
             
             # Mostrar enriquecimiento de grafo si está habilitado
-            if mostrar_grafo:
-                st.subheader("Relaciones de Conocimiento")
+            if mostrar_grafo and result['graph_enrichment']:
+                st.subheader("Grafo de Relaciones Científicas")
+                
+                # Crear grafo con Graphviz
+                dot = graphviz.Digraph(comment='Grafo de Conocimiento Científico')
+                dot.attr(rankdir='LR')  # De izquierda a derecha
+                
+                # Añadir nodos y aristas
+                for rel in result['graph_enrichment']:
+                    source = str(rel['source_concept'])
+                    target = str(rel['target_concept'])
+                    relation = rel['relation']
+                    
+                    # Añadir nodos
+                    dot.node(source, source, shape='box')
+                    dot.node(target, target, shape='box')
+                    
+                    # Añadir arista con etiqueta de relación
+                    dot.edge(source, target, label=relation)
+                
+                # Renderizar grafo en Streamlit
+                st.graphviz_chart(dot)
+                
+                # Mostrar detalles adicionales de las relaciones
+                st.subheader("Detalles de Relaciones")
                 for rel in result['graph_enrichment']:
                     st.markdown(f"""
-                    - **{rel['source_concept']}** 
-                    *{rel['relation']}* 
-                    **{rel['target_concept']}**
+                    ### Relación: {rel['source_concept']} → {rel['target_concept']}
+                    - **Tipo de Relación:** {rel.get('relation', 'No especificado')}
+                    - **Significancia:** {rel.get('significance', 'No evaluada')}
+                    - **Implicaciones:** {rel.get('implications', 'Sin detalles adicionales')}
+                    - **Nivel de Confianza:** {rel.get('confidence_level', 'No determinado')}
                     """)
         
         except Exception as e:
@@ -322,6 +353,7 @@ def generar_articulo_medium(idioma, llm_provider):
         "src/core/prompt_manager.py", 
         "src/core/financial_news_generator.py",
         "src/core/scientific_rag.py"
+        
     ]
     
     codigos_proyecto = {}
@@ -374,6 +406,149 @@ def generar_articulo_medium(idioma, llm_provider):
             file_name=f"{article_title.replace(' ', '_')}_medium_article.md",
             mime="text/markdown"
         )         
-            
+
+def generar_recursos_desarrollador(idioma, llm_provider):
+    st.warning("⚠️ Importante: Para generar archivos para desarrolladores, se utilizará:\n- Proveedor LLM: OpenAI\n- Idioma: Castellano")
+    
+    # Forzar OpenAI y castellano
+    llm_provider = 'openai'
+    idioma = 'castellano'
+    st.header("Recursos para Desarrolladores")
+    st.subheader("requirements, readme y dockerfile")
+    
+    
+    
+    # Recopilar archivos del proyecto para análisis
+    archivos_proyecto = [
+        "src/app.py", 
+        "src/core/llm_manager.py", 
+        "src/core/prompt_manager.py", 
+        "src/core/financial_news_generator.py",
+        "src/core/scientific_rag.py",
+        "src/core/image_generator.py",
+        "src/config/settings.py",
+        "src/config/settings.py",
+        "src/models/content.py"
+    ]
+    
+    # Leer contenidos de los archivos
+    codigos_proyecto = {}
+    for archivo in archivos_proyecto:
+        try:
+            with open(archivo, 'r', encoding='utf-8') as f:
+                codigos_proyecto[archivo] = f.read()
+        except Exception as e:
+            st.warning(f"Could not read {archivo}: {e}")
+    
+    if st.button("Generar Recursos de Desarrollo"):
+        # Inicializar managers
+        prompt_manager = PromptManager()
+        llm_manager = LLMManager(provider=llm_provider)
+        
+        # Generar requirements.txt
+        prompt_requirements = """Genera un archivo requirements.txt para este proyecto de aplicación Streamlit con múltiples funcionalidades. 
+        Basa los requirements en los siguientes archivos de código:
+        
+        Archivos del proyecto:
+        {archivos_codigo}
+        
+        Incluye todas las bibliotecas necesarias para ejecutar:
+        - Streamlit
+        - Generación de contenido con LLM
+        - Información financiera
+        - Contenido científico
+        - Generación de imágenes
+        
+        Asegúrate de incluir las versiones específicas de cada librería.""".format(
+            archivos_codigo="\n".join([f"- {arch}" for arch in codigos_proyecto.keys()])
+        )
+        
+        requirements = llm_manager.generate_content(
+            prompt_requirements, 
+            "requirements", 
+            "Generación de requirements.txt",
+            "Desarrolladores de software"
+        )
+        
+        # Generar README.md
+        prompt_readme = """Genera un README.md completo para este proyecto de aplicación Streamlit con múltiples funcionalidades. 
+        Incluye:
+        - Descripción general del proyecto
+        - Características principales
+        - Requisitos del sistema
+        - Instrucciones de instalación
+        - Guía de uso
+        - Estructura del proyecto
+        - Tecnologías utilizadas
+        
+        Basa la documentación en los siguientes archivos de código:
+        {archivos_codigo}
+        
+        Enfócate en explicar cada módulo y funcionalidad.""".format(
+            archivos_codigo="\n".join([f"- {arch}" for arch in codigos_proyecto.keys()])
+        )
+        
+        readme = llm_manager.generate_content(
+            prompt_readme, 
+            "readme", 
+            "Generación de README.md",
+            "Desarrolladores técnicos"
+        )
+        
+        # Generar Dockerfile
+        prompt_dockerfile = """Genera un Dockerfile para dockerizar esta aplicación Streamlit.
+        Considera:
+        - Usar una imagen base de Python
+        - Instalar dependencias desde requirements.txt
+        - Configurar variables de entorno
+        - Exponer puerto para Streamlit
+        - Copiar archivos necesarios
+        - Comando de inicio para la aplicación
+        
+        Archivos del proyecto:
+        {archivos_codigo}""".format(
+            archivos_codigo="\n".join([f"- {arch}" for arch in codigos_proyecto.keys()])
+        )
+        
+        dockerfile = llm_manager.generate_content(
+            prompt_dockerfile, 
+            "dockerfile", 
+            "Generación de Dockerfile",
+            "Equipos de DevOps"
+        )
+        
+         
+         # Crear un archivo ZIP en memoria
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr('requirements.txt', requirements.text)
+            zip_file.writestr('README.md', readme.text)
+            zip_file.writestr('Dockerfile', dockerfile.text)
+        
+        # Resetear el puntero del buffer
+        zip_buffer.seek(0)
+        
+        # Botón de descarga único para todos los archivos
+        st.download_button(
+            label="📦 Descargar Todos los Recursos",
+            data=zip_buffer,
+            file_name="developer_resources.zip",
+            mime="application/zip"
+        )
+        
+        # Mostrar contenidos de los archivos para previsualización
+        st.subheader("🔧 Recursos Generados")
+        
+        # Pestañas para mostrar contenidos
+        tab1, tab2, tab3 = st.tabs(["requirements.txt", "README.md", "Dockerfile"])
+        
+        with tab1:
+            st.code(requirements.text, language="txt")
+        
+        with tab2:
+            st.code(readme.text, language="markdown")
+        
+        with tab3:
+            st.code(dockerfile.text, language="dockerfile")       
 if __name__ == "__main__":
     main()
