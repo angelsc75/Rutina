@@ -9,7 +9,7 @@ LLM_PROVIDERS = {
         "api_key": os.getenv("OPENAI_API_KEY")
     },
     "groq": {
-        "model": "llama3-8b-8192",  # Modelo de Groq
+        "model": "llama3-8b-8192", 
         "api_key": os.getenv("GROQ_API_KEY")
     }
 }
@@ -24,7 +24,7 @@ AVAILABLE_PLATFORMS = [
 
 
 MODEL_SETTINGS = {
-    "model": "gpt-4o-mini",  # Nuevo modelo
+    "model": "gpt-4o-mini", 
     "temperature": 0.7,
     "max_tokens": 1000
 }
