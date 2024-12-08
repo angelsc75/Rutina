@@ -5,12 +5,7 @@ import os
 from deep_translator import GoogleTranslator
 from langsmith import traceable
 
-from dotenv import load_dotenv
-import yfinance as yf
-import requests
-import os
-from deep_translator import GoogleTranslator
-from langsmith import traceable
+
 
 class FinancialNewsGenerator:
     def __init__(self):

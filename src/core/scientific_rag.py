@@ -1,11 +1,19 @@
 import json
+import logging
+import os
 import arxiv  # Biblioteca para buscar papers en arXiv
+from dotenv import load_dotenv
 import openai  # Cliente de OpenAI para generación de texto
 from groq import Groq  # Cliente alternativo de LLM
 import random  # Para generación de grafos de conocimiento de respaldo
 from typing import List, Dict, Optional  # Tipado de datos
 import translators as ts  # Biblioteca para traducción de consultas
-from langsmith import traceable  # Decorador para seguimiento y rastreo de funciones
+from langsmith import Client, traceable  # Decorador para seguimiento y rastreo de funciones
+from langchain.callbacks import LangChainTracer
+
+# Cargar variables de entorno
+load_dotenv()
+
 class ScientificContentRAG:
     # Mapeo de dominios científicos entre español e inglés
     # Esto permite búsquedas más precisas en diferentes idiomas
@@ -37,6 +45,20 @@ class ScientificContentRAG:
         - Configura proveedor de LLM
         - Permite personalización de búsqueda
         """
+        # Configurar logging
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+         # Configurar LangSmith
+        try:
+            self.langsmith_client = Client(
+                api_key=os.getenv('LANGCHAIN_API_KEY'),
+                
+            )
+        except Exception as e:
+            self.logger.error(f"Error inicializando LangSmith: {e}")
+            self.langsmith_client = None
+            
+        self.tracer = LangChainTracer()
         # Convertir el dominio a su equivalente en inglés para búsquedas más precisas
         self.domain_en = self.DOMAIN_MAP.get(domain.lower(), domain)
         self.domain = domain
@@ -54,7 +76,7 @@ class ScientificContentRAG:
         else:
             raise ValueError(f"Proveedor no soportado: {provider}")
         
-    @traceable(name="translate_query")
+    
     def _translate_query(self, query: str) -> str:
         """
         Traduce consultas al inglés para búsquedas más precisas.
@@ -72,7 +94,7 @@ class ScientificContentRAG:
             print(f"Translation error: {e}")
             return query  # Si falla, usa consulta original
 
-    @traceable(name="search_arxiv_papers")
+    @traceable(name="search_arxiv_papers", run_type="llm", tags=["scientific-content"])
     def _search_arxiv_papers(self, query: str) -> List[Dict]:
         """
         Búsqueda de papers científicos en arXiv.
@@ -114,7 +136,7 @@ class ScientificContentRAG:
     }
         return papers
 
-    @traceable(name="synthesize_scientific_content")
+    @traceable(name="synthesize_content", run_type="llm", tags=["scientific-content"])
     def _synthesize_content(self, papers: List[Dict], query: str) -> str:
         """
         Sintetiza contenido científico utilizando LLM.
@@ -167,16 +189,19 @@ class ScientificContentRAG:
         
         # Generación de contenido con LLM
         response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
+    model=self.model,
+    messages=[
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ],
+    extra_headers={
+        "X-Langsmith-Trace": "true"  # Opcional: añade un header para identificación
+    }
+)
         
         return response.choices[0].message.content
 
-    @traceable(name="generate_knowledge_graph")
+    @traceable(name="generate_knowledge_graph", run_type="llm", tags=["scientific-content"])
     def _generate_knowledge_graph(self, papers: List[Dict]) -> List[Dict]:
         """
         Generación de grafo de conocimiento avanzado.
@@ -217,8 +242,12 @@ class ScientificContentRAG:
                             for i, p in enumerate(papers)
                         ])}
                         """
-                    }
+                    },
+                    
                 ],
+                extra_headers={
+        "X-Langsmith-Trace": "true"
+    },
                 temperature=0.7  # Mayor creatividad
             )
             
@@ -256,7 +285,7 @@ class ScientificContentRAG:
                 }
                 for _ in range(3)
             ]
-    @traceable(name="enrich_graph_relationships")
+    @traceable(name="enrich_graph_relationships", run_type="llm", tags=["scientific-content"])
     def _enrich_graph_relationships(self, graph_enrichment: List[Dict]) -> List[Dict]:
         """
         Enriquecimiento de relaciones del grafo con metadatos adicionales.
@@ -296,7 +325,10 @@ class ScientificContentRAG:
                         ]
                         """
                     }
-                ]
+                ],
+                extra_headers={
+        "X-Langsmith-Trace": "true"
+    }
             )
             
             # Procesamiento robusto de JSON
@@ -337,7 +369,7 @@ class ScientificContentRAG:
             print(f"Enrichment process failed: {e}")
             return graph_enrichment
 
-    @traceable(name="generate_scientific_graph_report")
+    @traceable(name="generate_scientific_graph_report", run_type="llm", tags=["scientific-content"])
     def generate_scientific_graph_report(self, query: str) -> Dict:
         """
         Método principal: genera informe científico completo.

@@ -6,6 +6,12 @@ import requests
 from PIL import Image
 from diffusers import StableDiffusionPipeline
 from openai import OpenAI
+from dotenv import load_dotenv
+from langsmith import Client, traceable
+
+
+# Cargar variables de entorno
+load_dotenv()
 
 class ImageGenerator:
     # Definir dimensiones específicas para cada plataforma
@@ -28,6 +34,17 @@ class ImageGenerator:
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
+        # Configurar LangSmith
+        try:
+            self.langsmith_client = Client(
+                api_key=os.getenv('LANGCHAIN_API_KEY'),
+                
+            )
+        except Exception as e:
+            self.logger.error(f"Error inicializando LangSmith: {e}")
+            self.langsmith_client = None
+            
+        
 
         # Inicializar clientes para servicios
         try:
@@ -74,6 +91,7 @@ class ImageGenerator:
         
         return adjusted_width, adjusted_height
 
+    @traceable(name="get_unsplash_image")
     def _get_unsplash_image(self, prompt, width, height):
         """
         Obtener imagen desde Unsplash
@@ -114,7 +132,7 @@ class ImageGenerator:
         except Exception as e:
             self.logger.error(f"Error en búsqueda de Unsplash: {e}")
             return None
-
+    @traceable(name="generate_image")
     def generate_image(self, prompt, platform, generator='unsplash'):
         try:
             # Obtener tamaño específico de plataforma, con fallback a un tamaño genérico
@@ -177,9 +195,9 @@ class ImageGenerator:
                         
                         # Mapeo de tamaños específicos a los más cercanos de DALL-E
                         size_mapping = {
-                            (1200, 632): '1024x1024',   # Blog/LinkedIn
+                            (1200, 632): '1792x1024',   # Blog/LinkedIn
                             (1080, 1080): '1024x1024',  # Instagram
-                            (1200, 672): '1024x1024'    # Twitter
+                            (1200, 672): '1792x1024'    # Twitter
                         }
                         
                         # Buscar mapeo directo primero
