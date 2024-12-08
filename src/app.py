@@ -10,7 +10,6 @@ from core.image_generator import ImageGenerator
 from config.settings import AVAILABLE_PLATFORMS, APP_SETTINGS, LLM_PROVIDERS
 import plotly.graph_objs as plt
 import yfinance as yf
-from core.sientific_agents import MultiAgentSystem
 from core.scientific_rag import ScientificContentRAG
 import io
 import zipfile
@@ -78,8 +77,7 @@ def main():
         "Generar Contenido por Plataforma", 
         "Información Financiera", 
         "Contenido Científico",
-        "Contenido Científico con Grafos",
-        "Artículo de Medium",
+         "Artículo de Medium",
         "Funcionalidades Desarrollador"  # Nueva opción
     ], key="app_selector")
     
@@ -95,9 +93,6 @@ def main():
     
     elif aplicacion == "Contenido Científico":
         contenido_cientifico(idioma,llm_provider)
-    
-    elif aplicacion == "Contenido Científico con Grafos":
-        contenido_cientifico_con_grafos(idioma, llm_provider)
     
     elif aplicacion == "Artículo de Medium":
         generar_articulo_medium(idioma, llm_provider)
@@ -184,12 +179,12 @@ def informacion_financiera(idioma, llm_provider):  # Recibe el idioma como pará
     financial_generator = FinancialNewsGenerator()
 
     market_tickers = {
-        "S&P 500": "^GSPC",
-        "NASDAQ Composite": "^IXIC",
-        "Dow Jones": "^DJI",
-        "FTSE 100": "^FTSE",
-        "Nikkei 225": "^N225"
-    }
+    "S&P 500 (Bolsa de Nueva York, EE.UU.)": "^GSPC",
+    "NASDAQ Composite (Bolsa de Nasdaq, EE.UU.)": "^IXIC", 
+    "Dow Jones (Bolsa de Nueva York, EE.UU.)": "^DJI",
+    "FTSE 100 (Bolsa de Londres, Reino Unido)": "^FTSE",
+    "Nikkei 225 (Bolsa de Tokio, Japón)": "^N225"
+}
     
     selected_market = st.selectbox("Selecciona un Mercado", list(market_tickers.keys()))
     
@@ -256,72 +251,52 @@ def informacion_financiera(idioma, llm_provider):  # Recibe el idioma como pará
             st.error(f"Error al generar el informe: {e}")
 
 def contenido_cientifico(idioma, llm_provider):
-     # Validaciones y selección más robustas
+    st.header("Contenido Científico")
+    
+    # Selector de dominio científico
     dominio = st.selectbox("Área Científica", [
         "física cuántica", 
         "inteligencia artificial", 
         "biomedicina", 
-        "astrofísica"
+        "astrofísica",
+        "neurociencia", 
+        "biología molecular", 
+        "cambio climático", 
+        "genética", 
+        "nanotecnología", 
+        "robótica", 
+        "computación cuántica"
     ])
     
+    # Consulta científica
     consulta = st.text_input("Consulta científica específica")
+    
+    # Checkbox para mostrar grafos de conocimiento
+    mostrar_grafo = st.checkbox("Mostrar grafo de relaciones científicas")
+    
+    # Opciones adicionales para Graph RAG
+    max_papers = st.slider("Número máximo de papers", 1, 20, 5)
     
     if st.button("Generar Contenido Científico"):
         if not consulta:
             st.warning("Por favor, ingrese una consulta científica.")
             return
         
+        # Inicializar ScientificContentRAG
         rag_system = ScientificContentRAG(
             domain=dominio, 
             language=idioma, 
-            provider=llm_provider
+            provider=llm_provider,
+            max_papers=max_papers
         )
         
         try:
+            # Generar informe científico con papers y posible grafo
             result = rag_system.generate_scientific_graph_report(consulta)
             
             # Mostrar contenido científico
+            st.subheader("Contenido Científico Generado")
             st.write(result['scientific_content'])
-            
-            # Mostrar papers usados
-            st.subheader("Papers Científicos Utilizados")
-            for paper in result['papers']:
-                with st.expander(paper['title']):
-                    st.write(f"**Resumen:** {paper['summary']}")
-                    st.write(f"**Autores:** {', '.join(paper['authors'])}")
-                    st.markdown(f"[Enlace al paper]({paper['url']})")
-        
-        except Exception as e:
-            st.error(f"Error en generación de contenido: {e}")
-
-def contenido_cientifico_con_grafos(idioma, llm_provider):
-    st.header("Generación de Contenido Científico con Grafos")
-    
-    # Mismos dominios que en contenido_cientifico
-    dominio = st.selectbox("Área Científica", [
-        "física cuántica", 
-        "inteligencia artificial", 
-        "biomedicina", 
-        "astrofísica"
-    ])
-    
-    consulta = st.text_input("Consulta científica específica")
-    
-    # Opciones adicionales para Graph RAG
-    mostrar_grafo = st.checkbox("Mostrar relaciones del grafo de conocimiento")
-    max_papers = st.slider("Número máximo de papers", 1, 20, 5)
-    
-    if st.button("Generar Contenido con Grafos"):
-        if not consulta:
-            st.warning("Por favor, ingrese una consulta científica.")
-            return
-        
-        # Inicializar ScientificContentRAG
-        rag_system = ScientificContentRAG(domain=dominio, language=idioma)
-        
-        try:
-            # Generar informe científico
-            result = rag_system.generate_scientific_graph_report(consulta)
             
             # Mostrar papers recuperados
             st.subheader("Papers Científicos Recuperados")
@@ -331,8 +306,8 @@ def contenido_cientifico_con_grafos(idioma, llm_provider):
                     st.write(f"**Autores:** {', '.join(paper['authors'])}")
                     st.markdown(f"[Enlace al paper]({paper['url']})")
             
-            # Mostrar enriquecimiento de grafo si está habilitado
-            if mostrar_grafo and result['graph_enrichment']:
+            # Mostrar grafo si está habilitado y existe
+            if mostrar_grafo and result.get('graph_enrichment'):
                 st.subheader("Grafo de Relaciones Científicas")
                 
                 # Crear grafo con Graphviz
@@ -341,9 +316,9 @@ def contenido_cientifico_con_grafos(idioma, llm_provider):
                 
                 # Añadir nodos y aristas
                 for rel in result['graph_enrichment']:
-                    source = str(rel['source_concept'])
-                    target = str(rel['target_concept'])
-                    relation = rel['relation']
+                    source = str(rel.get('source_concept', 'Concepto Fuente'))
+                    target = str(rel.get('target_concept', 'Concepto Destino'))
+                    relation = rel.get('relation', 'Relación')
                     
                     # Añadir nodos
                     dot.node(source, source, shape='box')
@@ -359,7 +334,7 @@ def contenido_cientifico_con_grafos(idioma, llm_provider):
                 st.subheader("Detalles de Relaciones")
                 for rel in result['graph_enrichment']:
                     st.markdown(f"""
-                    ### Relación: {rel['source_concept']} → {rel['target_concept']}
+                    ### Relación: {rel.get('source_concept', 'N/A')} → {rel.get('target_concept', 'N/A')}
                     - **Tipo de Relación:** {rel.get('relation', 'No especificado')}
                     - **Significancia:** {rel.get('significance', 'No evaluada')}
                     - **Implicaciones:** {rel.get('implications', 'Sin detalles adicionales')}
@@ -479,7 +454,6 @@ def generar_recursos_desarrollador(idioma, llm_provider):
         "src/core/financial_news_generator.py",
         "src/core/scientific_rag.py",
         "src/core/image_generator.py",
-        "src/config/settings.py",
         "src/config/settings.py",
         "src/models/content.py"
     ]

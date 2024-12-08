@@ -1,12 +1,14 @@
 import json
-import arxiv
-import openai
-from groq import Groq
-import random
-from typing import List, Dict, Optional
-import translators as ts  # New import for translation
-from langsmith import traceable
+import arxiv  # Biblioteca para buscar papers en arXiv
+import openai  # Cliente de OpenAI para generación de texto
+from groq import Groq  # Cliente alternativo de LLM
+import random  # Para generación de grafos de conocimiento de respaldo
+from typing import List, Dict, Optional  # Tipado de datos
+import translators as ts  # Biblioteca para traducción de consultas
+from langsmith import traceable  # Decorador para seguimiento y rastreo de funciones
 class ScientificContentRAG:
+    # Mapeo de dominios científicos entre español e inglés
+    # Esto permite búsquedas más precisas en diferentes idiomas
     DOMAIN_MAP = {
         "física cuántica": "Quantum Physics",
         "inteligencia artificial": "Artificial Intelligence", 
@@ -22,69 +24,79 @@ class ScientificContentRAG:
     
     def __init__(
         self, 
-        domain: str = "física cuántica", 
-        language: str = "castellano", 
-        max_papers: int = 5,
-        provider: str = 'openai'
+        domain: str = "física cuántica",  # Dominio científico por defecto
+        language: str = "castellano",     # Idioma de salida por defecto
+        max_papers: int = 5,              # Límite de papers a recuperar
+        provider: str = 'openai'          # Proveedor de LLM por defecto
     ):
         """
-        Inicializa el sistema RAG para contenido científico.
+        Constructor del sistema RAG (Retrieval-Augmented Generation) científico.
         
-        :param domain: Dominio científico para búsqueda
-        :param language: Idioma de generación
-        :param max_papers: Número máximo de papers a recuperar
-        :param provider: Proveedor de LLM (openai o groq)
+        Características principales:
+        - Mapea dominios científicos
+        - Configura proveedor de LLM
+        - Permite personalización de búsqueda
         """
-        # Map the domain to its English equivalent
+        # Convertir el dominio a su equivalente en inglés para búsquedas más precisas
         self.domain_en = self.DOMAIN_MAP.get(domain.lower(), domain)
         self.domain = domain
         self.language = language
         self.max_papers = max_papers
         self.provider = provider
         
-        # Inicializar cliente LLM
+        # Inicialización dinámica del cliente LLM según el proveedor
         if provider == 'openai':
             self.client = openai.OpenAI()
-            self.model = "gpt-4o-mini"
+            self.model = "gpt-4o-mini"  # Modelo más reciente y eficiente
         elif provider == 'groq':
             self.client = Groq()
-            self.model = "llama3-8b-8192"
+            self.model = "llama3-8b-8192"  # Modelo alternativo de Groq
         else:
             raise ValueError(f"Proveedor no soportado: {provider}")
-
+        
+    @traceable(name="translate_query")
     def _translate_query(self, query: str) -> str:
         """
-        Traduce la consulta al inglés.
+        Traduce consultas al inglés para búsquedas más precisas.
         
-        :param query: Consulta original
-        :return: Consulta traducida al inglés
+        Características:
+        - Usa librería de traducción externa
+        - Maneja errores de traducción
+        - Fallback a consulta original si falla
         """
         try:
-            # Usar translators para traducir
+            # Traducción robusta usando librería translators
             translated_query = ts.translate_text(query, to_language='en')
             return translated_query
         except Exception as e:
             print(f"Translation error: {e}")
-            return query  # Fallback to original query if translation fails
+            return query  # Si falla, usa consulta original
 
+    @traceable(name="search_arxiv_papers")
     def _search_arxiv_papers(self, query: str) -> List[Dict]:
         """
-        Busca papers en arXiv relacionados con el dominio y query.
+        Búsqueda de papers científicos en arXiv.
         
-        :param query: Consulta de búsqueda específica
-        :return: Lista de papers relevantes
+        Proceso:
+        1. Traduce consulta
+        2. Combina dominio y consulta
+        3. Busca en arXiv
+        4. Extrae metadatos relevantes
         """
-        # Translate query to English
+        # Traducir consulta para búsqueda precisa
         query_en = self._translate_query(query)
         
+        # Combinar dominio y consulta para mayor precisión
         full_query = f"{self.domain_en} {query_en}"
         
+        # Búsqueda en arXiv con parámetros configurables
         search = arxiv.Search(
             query=full_query,
             max_results=self.max_papers,
             sort_by=arxiv.SortCriterion.Relevance
         )
         
+        # Recolectar información de papers
         papers = []
         for result in search.results():
             papers.append({
@@ -93,26 +105,35 @@ class ScientificContentRAG:
                 'authors': [author.name for author in result.authors],
                 'url': result.entry_id
             })
-        
+        extra_metadata = {
+        "query": query, 
+        "domain": self.domain_en, 
+        "papers_found": len(papers), 
+        "language": self.language, 
+        "max_results_configured": self.max_papers
+    }
         return papers
 
+    @traceable(name="synthesize_scientific_content")
     def _synthesize_content(self, papers: List[Dict], query: str) -> str:
         """
-        Sintetiza contenido científico en el idioma especificado.
+        Sintetiza contenido científico utilizando LLM.
         
-        :param papers: Lista de papers recuperados
-        :param query: Consulta original
-        :return: Contenido científico sintetizado en el idioma solicitado
+        Proceso avanzado de generación:
+        1. Preparar papers
+        2. Configurar instrucciones de sistema
+        3. Generar contenido adaptado a idioma y dominio
         """
-        # Translate query to English
+        # Traducir consulta
         query_en = self._translate_query(query)
         
+        # Formatear textos de papers
         paper_texts = "\n\n".join([
             f"Paper: {p['title']}\nSummary: {p['summary']}" 
             for p in papers
         ])
         
-        # Mapeo de idiomas para el sistema
+        # Mapeo de idiomas para instrucciones
         language_instructions = {
             "castellano": "Spanish",
             "english": "English", 
@@ -120,7 +141,7 @@ class ScientificContentRAG:
             "italiano": "Italian"
         }
     
-        
+        # Prompt de sistema altamente estructurado
         system_prompt = f"""
         You are a scientific communicator expert in {self.domain_en}. 
         Your goal is to generate a one-page scientific article 
@@ -134,6 +155,7 @@ class ScientificContentRAG:
         - VERY IMPORTANT: Write the entire article in {language_instructions.get(self.language, 'the specified language')}
         """
         
+        # Prompt de usuario con papers y detalles específicos
         user_prompt = f"""
         Specific Topic: {query_en}
         
@@ -143,6 +165,7 @@ class ScientificContentRAG:
         Please write an article of approximately 500 words entirely in {language_instructions.get(self.language, 'the target language')}.
         """
         
+        # Generación de contenido con LLM
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -153,38 +176,40 @@ class ScientificContentRAG:
         
         return response.choices[0].message.content
 
+    @traceable(name="generate_knowledge_graph")
     def _generate_knowledge_graph(self, papers: List[Dict]) -> List[Dict]:
+        """
+        Generación de grafo de conocimiento avanzado.
+        
+        Características:
+        - Extracción semántica de relaciones
+        - Manejo de errores con generación de respaldo
+        - Priorización de relaciones significativas
+        """
         if not papers:
             return []
         
         try:
-            # Usar un prompt más detallado para extraer relaciones más significativas
+            # Generación de grafo con LLM
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system", 
                         "content": """
-                        You are an advanced scientific knowledge graph generator. 
-                        Your task is to extract the most meaningful and insightful 
-                        semantic relationships between scientific concepts.
-                        
-                        Evaluation criteria:
-                        - Prioritize causal relationships
-                        - Focus on conceptual connections
-                        - Highlight novel or unexpected links
-                        - Ensure scientific accuracy
+                        Advanced scientific knowledge graph generator. 
+                        Extract meaningful semantic relationships.
                         """
                     },
                     {
                         "role": "user", 
                         "content": f"""
-                        Analyze these scientific papers and generate the most significant knowledge graph relationships.
+                        Generate most significant knowledge graph relationships.
                         
                         Guidelines:
-                        - Extract 3-5 most impactful conceptual relationships
-                        - Provide a brief (1-2 word) explanation for each relationship
-                        - Format: Source Concept | Relationship Type | Target Concept | Brief Explanation
+                        - Extract 3-5 impactful conceptual relationships
+                        - Provide brief explanations
+                        - Format: Source Concept | Relationship | Target Concept | Explanation
 
                         Papers Summaries:
                         {"\n\n".join([
@@ -194,7 +219,7 @@ class ScientificContentRAG:
                         """
                     }
                 ],
-                temperature=0.7  # Slightly higher creativity
+                temperature=0.7  # Mayor creatividad
             )
             
             # Procesamiento avanzado de relaciones
@@ -217,7 +242,7 @@ class ScientificContentRAG:
         
         except Exception as e:
             print(f"Advanced graph generation error: {e}")
-            # Fallback with more structured random generation
+            # Generación de respaldo con relaciones aleatorias
             return [
                 {
                     'source_concept': papers[0]['title'].split()[:2],
@@ -231,12 +256,18 @@ class ScientificContentRAG:
                 }
                 for _ in range(3)
             ]
+    @traceable(name="enrich_graph_relationships")
     def _enrich_graph_relationships(self, graph_enrichment: List[Dict]) -> List[Dict]:
         """
-        Método para enriquecer las relaciones con metadatos adicionales
-        Incluye más registro de errores y manejo de casos especiales
+        Enriquecimiento de relaciones del grafo con metadatos adicionales.
+        
+        Características:
+        - Procesamiento robusto de JSON
+        - Múltiples estrategias de extracción
+        - Validación estricta de estructura
         """
         try:
+            # Generación de enriquecimiento con LLM
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -247,7 +278,7 @@ class ScientificContentRAG:
                     {
                         "role": "user", 
                         "content": f"""
-                        Provide a detailed enrichment of these scientific relationships in strict JSON format.
+                        Provide enriched scientific relationships in strict JSON.
                         
                         Original Relationships:
                         {json.dumps(graph_enrichment, indent=2)}
@@ -263,44 +294,30 @@ class ScientificContentRAG:
                                 "confidence_level": "high/medium/low"
                             }}
                         ]
-                        
-                        CRITICAL: Respond ONLY with VALID JSON. No additional text.
                         """
                     }
                 ]
             )
             
-            # Obtener texto de respuesta
+            # Procesamiento robusto de JSON
             response_text = response.choices[0].message.content.strip()
             
-            # Depuración: imprimir respuesta raw
-            print("Raw Response:", response_text)
-            
-            # Intentar parsear JSON de múltiples maneras
             def parse_json(text):
                 try:
-                    # Método 1: Parseo directo
+                    # Múltiples estrategias de parseo
                     parsed = json.loads(text)
                     return parsed if isinstance(parsed, list) else None
                 except json.JSONDecodeError:
-                    try:
-                        # Método 2: Remover texto antes y después del JSON
-                        import re
-                        json_match = re.search(r'\[.*\]', text, re.DOTALL | re.MULTILINE)
-                        if json_match:
-                            return json.loads(json_match.group(0))
-                    except Exception as e:
-                        print(f"JSON Extraction Error: {e}")
-                    return None
+                    # Estrategias de extracción alternativas
+                    import re
+                    json_match = re.search(r'\[.*\]', text, re.DOTALL | re.MULTILINE)
+                    if json_match:
+                        return json.loads(json_match.group(0))
+                return None
             
-            # Intentar parsear
+            # Validaciones y procesamiento
             parsed_data = parse_json(response_text)
             
-            if parsed_data is None:
-                print("CRITICAL: Could not parse JSON")
-                return graph_enrichment
-            
-            # Validar la estructura de los datos
             def validate_enrichment(item):
                 required_keys = [
                     'source_concept', 'relation', 'target_concept', 
@@ -308,33 +325,34 @@ class ScientificContentRAG:
                 ]
                 return all(key in item for key in required_keys)
             
-            # Filtrar y validar entradas
+            # Filtrado de enriquecimientos válidos
             valid_enrichments = [
                 item for item in parsed_data 
                 if validate_enrichment(item)
             ]
             
-            if not valid_enrichments:
-                print("No valid enrichments found. Using original data.")
-                return graph_enrichment
-            
-            return valid_enrichments
+            return valid_enrichments or graph_enrichment
         
         except Exception as e:
             print(f"Enrichment process failed: {e}")
-            return graph_enrichment        
+            return graph_enrichment
+
     @traceable(name="generate_scientific_graph_report")
     def generate_scientific_graph_report(self, query: str) -> Dict:
         """
-        Genera un informe científico con recuperación y síntesis de papers.
+        Método principal: genera informe científico completo.
         
-        :param query: Consulta científica específica
-        :return: Diccionario con informe y metadata
+        Proceso integral:
+        1. Traducir consulta
+        2. Buscar papers
+        3. Sintetizar contenido
+        4. Generar grafo de conocimiento
+        5. Enriquecer grafo
         """
-        # Translate query to English for consistent processing
+        # Traducir consulta para procesamiento consistente
         query_en = self._translate_query(query)
         
-        # Recuperar papers
+        # Recuperar papers científicos
         papers = self._search_arxiv_papers(query_en)
         
         if not papers:
@@ -344,21 +362,17 @@ class ScientificContentRAG:
                 'graph_enrichment': []
             }
         
-        # Sintetizar contenido
+        # Sintetizar contenido científico
         scientific_content = self._synthesize_content(papers, query_en)
         
-        # Generar grafo de conocimiento más inteligente
+        # Generar y enriquecer grafo de conocimiento
         graph_enrichment = self._generate_knowledge_graph(papers)
         try:
             graph_enrichment = self._enrich_graph_relationships(graph_enrichment)
         except Exception as e:
             print(f"Graph enrichment failed: {e}")
-            # Use original graph_enrichment if enrichment fails
-        extra_metadata = {
-            "domain": self.domain,
-            "language": self.language,
-            "query": query
-        }
+        
+        # Retornar informe científico completo
         return {
             'scientific_content': scientific_content,
             'papers': papers,
