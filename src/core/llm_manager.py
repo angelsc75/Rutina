@@ -1,6 +1,7 @@
 import traceback
 from models.content import Content
 import uuid
+from langsmith import traceable
 
 class LLMManager:
     def __init__(self, provider='openai'):
@@ -25,7 +26,7 @@ class LLMManager:
         except Exception as e:
             print(f"Error de inicialización: {e}")
             raise
-
+    @traceable(name="generate_content")
     def generate_content(self, prompt, platform, topic, audience, language="castellano"):
         try:
             if not prompt:
@@ -41,7 +42,11 @@ class LLMManager:
                     language=language,
                     text=f"Contenido simulado para {topic}"
                 )
-            
+            extra_metadata = {
+            "platform": platform,
+            "tema": topic,
+            "audiencia": audience
+        }
             # Generación de contenido
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -67,7 +72,7 @@ class LLMManager:
                 language=language,
                 text=generated_text
             )
-        
+            
         except Exception as e:
             error_details = f"Error en generación de contenido: {str(e)}\n{traceback.format_exc()}"
             print(error_details)

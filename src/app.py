@@ -1,3 +1,5 @@
+
+from datetime import datetime
 import graphviz
 import streamlit as st
 from core.prompt_manager import PromptManager
@@ -12,7 +14,58 @@ from core.sientific_agents import MultiAgentSystem
 from core.scientific_rag import ScientificContentRAG
 import io
 import zipfile
+from langsmith import Client, traceable
+import os
+from dotenv import load_dotenv
+
+
+load_dotenv()
+def setup_langsmith():
+    try:
+        # Obtener variables de entorno
+        tracing_enabled = os.getenv('LANGCHAIN_TRACING_V2', 'false').lower() == 'true'
+        endpoint = os.getenv('LANGCHAIN_ENDPOINT')
+        api_key = os.getenv('LANGCHAIN_API_KEY')
+        project = os.getenv('LANGCHAIN_PROJECT', 'default')
+
+        # Configurar variables de entorno explícitamente
+        if tracing_enabled:
+            os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        
+        if endpoint:
+            os.environ["LANGCHAIN_ENDPOINT"] = endpoint
+        
+        # Crear cliente de LangSmith
+        if api_key:
+            client = Client(
+                api_key=api_key,
+                endpoint=endpoint,
+                project_name=project
+            )
+            return client
+        else:
+            print("⚠️ LangSmith API Key no configurada")
+            return None
+    
+    except Exception as e:
+        print(f"Error configurando LangSmith: {e}")
+        return None
+
 def main():
+    langsmith_client = setup_langsmith()
+    
+    if langsmith_client:
+        try:
+            langsmith_client.create_run(
+                name="Streamlit App Session",
+                run_type="chain",
+                inputs={
+                    "fecha": datetime.now().isoformat(),
+                    "version_app": "1.0"
+                }
+            )
+        except Exception as e:
+            print(f"Error creando run en LangSmith: {e}")
     st.title(APP_SETTINGS["title"])
     
     # Primer paso: Selección de idioma

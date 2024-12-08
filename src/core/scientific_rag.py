@@ -5,7 +5,7 @@ from groq import Groq
 import random
 from typing import List, Dict, Optional
 import translators as ts  # New import for translation
-
+from langsmith import traceable
 class ScientificContentRAG:
     DOMAIN_MAP = {
         "física cuántica": "Quantum Physics",
@@ -323,7 +323,7 @@ class ScientificContentRAG:
         except Exception as e:
             print(f"Enrichment process failed: {e}")
             return graph_enrichment        
-
+    @traceable(name="generate_scientific_graph_report")
     def generate_scientific_graph_report(self, query: str) -> Dict:
         """
         Genera un informe científico con recuperación y síntesis de papers.
@@ -354,7 +354,11 @@ class ScientificContentRAG:
         except Exception as e:
             print(f"Graph enrichment failed: {e}")
             # Use original graph_enrichment if enrichment fails
-        
+        extra_metadata = {
+            "domain": self.domain,
+            "language": self.language,
+            "query": query
+        }
         return {
             'scientific_content': scientific_content,
             'papers': papers,

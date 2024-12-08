@@ -3,17 +3,23 @@ import yfinance as yf
 import requests
 import os
 from deep_translator import GoogleTranslator
+from langsmith import traceable
 
+from dotenv import load_dotenv
+import yfinance as yf
+import requests
+import os
+from deep_translator import GoogleTranslator
+from langsmith import traceable
 
 class FinancialNewsGenerator:
     def __init__(self):
-        
         load_dotenv()
         self.alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_KEY")
         if not self.alpha_vantage_api_key:
             raise ValueError("La clave de Alpha Vantage (ALPHA_VANTAGE_KEY) no está definida en el archivo .env.")
     
-    
+    @traceable(name="get_top_stocks_from_yahoo")
     def get_top_stocks_from_yahoo(self, etf_ticker, top_n=5):
         try:
             market_components = {
@@ -43,10 +49,9 @@ class FinancialNewsGenerator:
                     }
                     top_stocks.append(stock_info)
 
-            # Filter out stocks with extreme changes
             filtered_stocks = [
                 stock for stock in top_stocks 
-                if abs(stock['change_percent']) < 20  # Limit to ±20% change
+                if abs(stock['change_percent']) < 20
             ]
 
             filtered_stocks.sort(key=lambda x: abs(x['change_percent']), reverse=True)
@@ -55,6 +60,7 @@ class FinancialNewsGenerator:
             print(f"Error fetching data from Yahoo Finance: {e}")
             return []
 
+    @traceable(name="get_top_stocks_from_alpha")
     def get_top_stocks_from_alpha(self, market_sector=None, top_n=5):
         try:
             url = f"https://www.alphavantage.co/query"
@@ -65,7 +71,6 @@ class FinancialNewsGenerator:
             response = requests.get(url, params=params)
             data = response.json()
 
-            # Check the structure of the response
             if "top_gainers" in data:
                 top_stocks = [
                     {
@@ -85,25 +90,21 @@ class FinancialNewsGenerator:
             print(f"Error fetching data from Alpha Vantage: {e}")
             return []
 
+    @traceable(name="get_top_stocks_from_market")
     def get_top_stocks_from_market(self, market_ticker, top_n=5):
-        """
-        Fetch top stocks for a given market index using multiple data sources.
-        """
         etf_map = {
-            "^GSPC": "SPY",   # S&P 500
-            "^IXIC": "QQQ",   # NASDAQ
-            "^DJI": "DIA",    # Dow Jones
-            "^FTSE": "VUKE",  # FTSE 100
-            "^N225": "HJPX"   # Nikkei 225
+            "^GSPC": "SPY",
+            "^IXIC": "QQQ",
+            "^DJI": "DIA",
+            "^FTSE": "VUKE",
+            "^N225": "HJPX"
         }
         etf_ticker = etf_map.get(market_ticker, market_ticker)
 
-        # Try Yahoo Finance first
         yahoo_stocks = self.get_top_stocks_from_yahoo(etf_ticker, top_n)
         if yahoo_stocks:
             return yahoo_stocks
 
-        # Fallback to Alpha Vantage
         try:
             alpha_stocks = self.get_top_stocks_from_alpha()
             if alpha_stocks:
@@ -112,10 +113,9 @@ class FinancialNewsGenerator:
             print(f"Alpha Vantage fallback failed: {e}")
 
         return []
+
+    @traceable(name="get_market_performance")
     def get_market_performance(self, market_ticker):
-        """
-        Fetch overall market performance for a given index.
-        """
         try:
             market = yf.Ticker(market_ticker)
             historical_data = market.history(period="1d")
@@ -123,7 +123,6 @@ class FinancialNewsGenerator:
             if historical_data.empty:
                 return None
             
-            # Calculate market performance metrics
             open_price = historical_data['Open'].iloc[0]
             close_price = historical_data['Close'].iloc[-1]
             change = close_price - open_price
@@ -137,17 +136,12 @@ class FinancialNewsGenerator:
         except Exception as e:
             print(f"Error fetching market performance: {e}")
             return None
+
+    @traceable(name="generate_market_report")
     def generate_market_report(self, market_ticker, top_n=5):
-        """
-        Generate a comprehensive market report.
-        """
-        # Fetch top stocks
         top_stocks = self.get_top_stocks_from_market(market_ticker, top_n)
-        
-        # Fetch market performance
         market_performance = self.get_market_performance(market_ticker)
         
-        # Construct report
         report = f"Market: {market_ticker}\n"
         
         if market_performance:
@@ -168,17 +162,14 @@ class FinancialNewsGenerator:
         
         return report
 
+    @traceable(name="get_financial_news")
     def get_financial_news(self, market_name, language="english"):
-        """
-        Fetch financial news related to a specific market using NewsAPI and translate if needed
-        """
         load_dotenv()
         news_api_key = os.getenv("NEWSAPI_KEY")
         
         if not news_api_key:
             raise ValueError("NewsAPI key (NEWSAPI_KEY) is not defined in .env file")
         
-        # Expanded and more generic keywords
         market_keywords = {
             "S&P 500": ["S&P 500", "stock market", "wall street", "US stocks"],
             "NASDAQ Composite": ["NASDAQ", "tech stocks", "technology market", "silicon valley"],
@@ -187,31 +178,25 @@ class FinancialNewsGenerator:
             "Nikkei 225": ["Nikkei 225", "Japanese stock market", "Tokyo stocks"]
         }
         
-        # Use a broader approach to find news
         keywords = market_keywords.get(market_name, ["stock market"])
         
-        # Try multiple queries if first attempt fails
         for keyword in keywords:
-            url = "https://newsapi.org/v2/everything"  # Changed from top-headlines to everything
+            url = "https://newsapi.org/v2/everything"
             params = {
                 "apiKey": news_api_key,
                 "q": keyword,
                 "language": "en",
                 "sortBy": "publishedAt",
-                "pageSize": 5  # Increased to 5 to have more options
+                "pageSize": 5
             }
             
             try:
                 response = requests.get(url, params=params)
                 data = response.json()
                 
-                print(f"Debug - NewsAPI Response Status: {data.get('status')}")
-                print(f"Debug - Total Results for '{keyword}': {data.get('totalResults', 0)}")
-                
                 if data.get("status") == "ok" and data.get("totalResults", 0) > 0:
-                    # Extract relevant news information
                     news_articles = []
-                    for article in data.get("articles", [])[:3]:  # Limit to 3 articles
+                    for article in data.get("articles", [])[:3]:
                         if article.get("title") and article.get("description"):
                             news_articles.append({
                                 "title": article.get("title", ""),
@@ -222,24 +207,16 @@ class FinancialNewsGenerator:
                             })
                     
                     if news_articles:
-                        # Translate articles if needed
                         translated_articles = self.translate_news_articles(news_articles, language)
                         return translated_articles
-                
-                print(f"Debug - No articles found for keyword: {keyword}")
             
             except Exception as e:
                 print(f"Error fetching news for {keyword}: {e}")
         
-        # If no news found after trying all keywords
-        print("Debug - No news found for any keyword")
         return []
-    
+
+    @traceable(name="translate_news_articles")
     def translate_news_articles(self, articles, target_language):
-        """
-        Translate news articles to the target language using deep_translator
-        """
-        # Mapping of language codes
         language_map = {
             "castellano": "es",
             "english": "en",
@@ -247,16 +224,13 @@ class FinancialNewsGenerator:
             "italiano": "it"
         }
         
-        # Get the target language code
         target_lang_code = language_map.get(target_language, "en")
         
-        # Only translate if target language is not English
         if target_lang_code != "en":
             translated_articles = []
             
             for article in articles:
                 try:
-                    # Translate title and description
                     translated_title = GoogleTranslator(source='auto', target=target_lang_code).translate(article['title'])
                     translated_description = GoogleTranslator(source='auto', target=target_lang_code).translate(article['description'])
                     
@@ -268,7 +242,6 @@ class FinancialNewsGenerator:
                     })
                 except Exception as e:
                     print(f"Translation error: {e}")
-                    # Fallback to original article if translation fails
                     translated_articles.append(article)
             
             return translated_articles
