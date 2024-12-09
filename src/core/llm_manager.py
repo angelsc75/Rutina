@@ -42,11 +42,7 @@ class LLMManager:
                     language=language,
                     text=f"Contenido simulado para {topic}"
                 )
-            extra_metadata = {
-            "platform": platform,
-            "tema": topic,
-            "audiencia": audience
-        }
+           
             # Generación de contenido
             response = self.client.chat.completions.create(
                 model=self.model,
