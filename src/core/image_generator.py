@@ -34,17 +34,15 @@ class ImageGenerator:
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
+        
         # Configurar LangSmith
         try:
             self.langsmith_client = Client(
                 api_key=os.getenv('LANGCHAIN_API_KEY'),
-                
             )
         except Exception as e:
             self.logger.error(f"Error inicializando LangSmith: {e}")
             self.langsmith_client = None
-            
-        
 
         # Inicializar clientes para servicios
         try:
@@ -53,8 +51,9 @@ class ImageGenerator:
             self.logger.error(f"Error inicializando cliente OpenAI: {e}")
             self.openai_client = None
         
-        # Obtener API key de Unsplash desde variables de entorno
+        # Obtener API keys desde variables de entorno
         self.unsplash_access_key = os.getenv("UNSPLASH_ACCESS_KEY")
+        self.pixabay_api_key = os.getenv("PIXABAY_API_KEY")
         
         # Inicializar Stable Diffusion
         try:
@@ -132,6 +131,52 @@ class ImageGenerator:
         except Exception as e:
             self.logger.error(f"Error en búsqueda de Unsplash: {e}")
             return None
+
+    @traceable(name="get_pixabay_image")
+    def _get_pixabay_image(self, prompt, width, height):
+        """
+        Obtener imagen desde Pixabay
+        """
+        if not self.pixabay_api_key:
+            self.logger.error("Pixabay API key no configurada")
+            return None
+        
+        try:
+            # Parámetros para buscar imagen
+            params = {
+                'key': self.pixabay_api_key,
+                'q': prompt,
+                'image_type': 'photo',  # Solo fotos
+                'per_page': 10,  # Número de resultados a devolver
+                'min_width': width,
+                'min_height': height,
+                'order': 'popular'  # Imágenes más populares primero
+            }
+            
+            # Realizar solicitud a API de Pixabay
+            response = requests.get(
+                "https://pixabay.com/api/", 
+                params=params
+            )
+            
+            # Verificar respuesta
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('hits'):
+                    # Seleccionar primera imagen que cumpla con los requisitos
+                    for hit in data['hits']:
+                        # Descargar imagen de tamaño grande
+                        image_response = requests.get(hit['largeImageURL'])
+                        if image_response.status_code == 200:
+                            return image_response.content
+            
+            self.logger.error(f"Error obteniendo imagen de Pixabay: {response.status_code}")
+            return None
+        
+        except Exception as e:
+            self.logger.error(f"Error en búsqueda de Pixabay: {e}")
+            return None
+
     @traceable(name="generate_image")
     def generate_image(self, prompt, platform, generator='unsplash'):
         try:
@@ -142,6 +187,9 @@ class ImageGenerator:
             # Seleccionar generador de imagen
             if generator == 'unsplash':
                 return self._get_unsplash_image(prompt, width, height)
+            
+            elif generator == 'pixabay':
+                return self._get_pixabay_image(prompt, width, height)
             
             elif generator == 'stable-diffusion':
                 # Verificar si el modelo está inicializado
