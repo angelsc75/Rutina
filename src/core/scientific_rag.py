@@ -230,18 +230,13 @@ class ScientificContentRAG:
                         "role": "user", 
                         "content": f"""
                         Generate most significant knowledge graph relationships.
-                        
                         Guidelines:
                         - Extract 3-5 impactful conceptual relationships
                         - Provide brief explanations
                         - Format: Source Concept | Relationship | Target Concept | Explanation
-
                         Papers Summaries:
-                        {"\n\n".join([
-                            f"Paper {i+1}: Title: {p['title']}\nSummary: {p['summary']}" 
-                            for i, p in enumerate(papers)
-                        ])}
-                        """
+                    """
+                    + "\n\n".join(f"Paper {i+1}: Title: {p['title']}\nSummary: {p['summary']}" for i, p in enumerate(papers))
                     },
                     
                 ],
