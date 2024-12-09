@@ -77,7 +77,8 @@ def generar_contenido_por_plataforma(idioma, llm_provider):
         # Opciones de generación de imagen
         image_source = st.radio("Selecciona fuente de imagen", [
             "Generar con IA", 
-            "Buscar en Unsplash"
+            "Buscar en Unsplash",
+            "Buscar en Pixabay"  # Nueva opción
         ])
         
         # Selector de generador de IA
@@ -86,8 +87,10 @@ def generar_contenido_por_plataforma(idioma, llm_provider):
                 'stable-diffusion', 
                 'dall-e'
             ])
-        else:
+        elif image_source == "Buscar en Unsplash":
             generator = 'unsplash'
+        else:  # Pixabay
+            generator = 'pixabay'
         
         # Prompt para imagen 
         image_prompt = st.text_input(
@@ -115,7 +118,7 @@ def generar_contenido_por_plataforma(idioma, llm_provider):
         
         # Generación de imagen si está marcado el checkbox
         if generar_imagen:
-            st.subheader("Imagen Generada")
+            st.subheader("Imagen")
             
             # Inicializar generador de imágenes
             image_generator = ImageGenerator()
