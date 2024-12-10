@@ -18,13 +18,26 @@ from dotenv import load_dotenv
 
 def main():
     st.set_page_config(
-        page_title=APP_SETTINGS["title"],
+        page_title="Rutina",
         page_icon="🔍",
         layout="wide"
     )
-
-    # Add Rutina logo
-    st.sidebar.image("src/images/rutina_logo_baja.png")
+ # Añadir estilo para fondo blanco del sidebar
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.sidebar.columns([1,2,1])
+    
+    with col2:
+        st.image("src/images/rutina_logo_baja.png")
+    
+    # Añadir título grande de la aplicación
+    st.title("Rutina: Generación de Contenido Inteligente")
     
     # Primer paso: Selección de idioma
     idioma = st.sidebar.radio("Selecciona Idioma", [
@@ -60,6 +73,7 @@ def main():
         generar_recursos_desarrollador(idioma, llm_provider)
 
 def generar_contenido_por_plataforma(idioma, llm_provider):
+    st.header("Generar contenido para plataformas")
     # Selección de plataforma
     platform = st.selectbox("Selecciona la plataforma", AVAILABLE_PLATFORMS)
     
