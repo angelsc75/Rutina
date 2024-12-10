@@ -1,4 +1,3 @@
-
 from datetime import datetime
 import graphviz
 import streamlit as st
@@ -17,14 +16,15 @@ from langsmith import Client, traceable
 import os
 from dotenv import load_dotenv
 
-
-
-
 def main():
-    
-    
-    
-    st.title(APP_SETTINGS["title"])
+    st.set_page_config(
+        page_title=APP_SETTINGS["title"],
+        page_icon="🔍",
+        layout="wide"
+    )
+
+    # Add Rutina logo
+    st.sidebar.image("rutina_logo_baja.png")
     
     # Primer paso: Selección de idioma
     idioma = st.sidebar.radio("Selecciona Idioma", [
