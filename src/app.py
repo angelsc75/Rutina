@@ -24,7 +24,7 @@ def main():
     )
 
     # Add Rutina logo
-    st.sidebar.image("rutina_logo_baja.png")
+    st.sidebar.image("src/images/rutina_logo_baja.png")
     
     # Primer paso: Selección de idioma
     idioma = st.sidebar.radio("Selecciona Idioma", [
