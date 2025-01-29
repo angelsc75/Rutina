@@ -59,7 +59,7 @@ class ScientificContentRAG:
             self.langsmith_client = None
             
         self.tracer = LangChainTracer()
-        # Convertir el dominio a su equivalente en inglés para búsquedas más precisas
+        
         self.domain_en = self.DOMAIN_MAP.get(domain.lower(), domain)
         self.domain = domain
         self.language = language
